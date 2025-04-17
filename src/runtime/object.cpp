@@ -2370,25 +2370,6 @@ extern "C" LEAN_EXPORT obj_res lean_copy_sarray(obj_arg a, size_t cap) {
     return r;
 }
 
-obj_res lean_sarray_ensure_exclusive(obj_arg a) {
-    if (lean_is_exclusive(a)) {
-        return a;
-    } else {
-        return lean_copy_sarray(a, lean_sarray_capacity(a));
-    }
-}
-
-/* Ensure that `a` has capacity at least `min_cap`, copying `a` otherwise.
-   If `exact` is false, double the capacity on copying. */
-extern "C" LEAN_EXPORT obj_res lean_sarray_ensure_capacity(obj_arg a, size_t min_cap, bool exact) {
-    size_t cap = lean_sarray_capacity(a);
-    if (min_cap <= cap) {
-        return a;
-    } else {
-        return lean_copy_sarray(a, exact ? min_cap : min_cap * 2);
-    }
-}
-
 extern "C" LEAN_EXPORT obj_res lean_copy_byte_array(obj_arg a) {
     return lean_copy_sarray(a, lean_sarray_capacity(a));
 }
@@ -2428,7 +2409,7 @@ extern "C" LEAN_EXPORT obj_res lean_byte_array_push(obj_arg a, uint8 b) {
     return r;
 }
 
-    extern "C" LEAN_EXPORT obj_res lean_byte_array_copy_slice(b_obj_arg src, obj_arg o_src_off, obj_arg dest, obj_arg o_dest_off, obj_arg o_len, bool exact) {
+extern "C" LEAN_EXPORT obj_res lean_byte_array_copy_slice(b_obj_arg src, obj_arg o_src_off, obj_arg dest, obj_arg o_dest_off, obj_arg o_len, bool exact) {
     size_t ssz = lean_sarray_size(src);
     size_t dsz = lean_sarray_size(dest);
     size_t src_off = lean_nat_to_size_t(o_src_off);
@@ -2443,7 +2424,6 @@ extern "C" LEAN_EXPORT obj_res lean_byte_array_push(obj_arg a, uint8 b) {
     size_t new_dsz = std::max(dsz, dest_off + len);
     object * r = lean_sarray_ensure_exclusive(lean_sarray_ensure_capacity(dest, new_dsz, exact));
     lean_to_sarray(r)->m_size = new_dsz;
-    // `r` is exclusive, so the ranges definitely cannot overlap
     memcpy(lean_sarray_cptr(r) + dest_off, lean_sarray_cptr(src) + src_off, len);
     return r;
 }
