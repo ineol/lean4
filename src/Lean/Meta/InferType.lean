@@ -10,7 +10,7 @@ import Lean.Meta.Basic
 namespace Lean
 
 /--
-Auxiliary function for instantiating the loose bound variables in `e` with `args[start:stop]`.
+Auxiliary function for instantiating the loose bound variables in `e` with `args[start...stop]`.
 This function is similar to `instantiateRevRange`, but it applies beta-reduction when
 we instantiate a bound variable with a lambda expression.
 Example: Given the term `#0 a`, and `start := 0, stop := 1, args := #[fun x => x]` the result is
@@ -38,7 +38,7 @@ where
       match e with
       | .forallE _ d b _ => return e.updateForallE! (← visit d offset) (← visit b (offset+1))
       | .lam _ d b _     => return e.updateLambdaE! (← visit d offset) (← visit b (offset+1))
-      | .letE _ t v b _  => return e.updateLet! (← visit t offset) (← visit v offset) (← visit b (offset+1))
+      | .letE _ t v b _  => return e.updateLetE! (← visit t offset) (← visit v offset) (← visit b (offset+1))
       | .mdata _ b       => return e.updateMData! (← visit b offset)
       | .proj _ _ b      => return e.updateProj! (← visit b offset)
       | .app .. =>
@@ -75,7 +75,7 @@ private def inferAppType (f : Expr) (args : Array Expr) : MetaM Expr := do
   let mut j := 0
   /- TODO: check whether `instantiateBetaRevRange` is too expensive, and
      use it only when `args` contains a lambda expression. -/
-  for i in [:args.size] do
+  for i in *...args.size do
     match fType with
     | Expr.forallE _ _ b _ => fType := b
     | _ =>
@@ -106,8 +106,8 @@ private def inferProjType (structName : Name) (idx : Nat) (e : Expr) : MetaM Exp
     if structVal.numParams + structVal.numIndices != structTypeArgs.size then
       failed ()
     else do
-      let mut ctorType ← inferAppType (mkConst ctorVal.name structLvls) structTypeArgs[:structVal.numParams]
-      for i in [:idx] do
+      let mut ctorType ← inferAppType (mkConst ctorVal.name structLvls) structTypeArgs[*...<structVal.numParams]
+      for i in *...idx do
         ctorType ← whnf ctorType
         match ctorType with
         | .forallE _ _ body _ =>
@@ -121,7 +121,7 @@ private def inferProjType (structName : Name) (idx : Nat) (e : Expr) : MetaM Exp
       | .forallE _ d _ _ => return d.consumeTypeAnnotations
       | _                => failed ()
 
-def throwTypeExcepted {α} (type : Expr) : MetaM α :=
+def throwTypeExpected {α} (type : Expr) : MetaM α :=
   throwError "type expected{indentExpr type}"
 
 def getLevel (type : Expr) : MetaM Level := do
@@ -131,12 +131,12 @@ def getLevel (type : Expr) : MetaM Level := do
   | Expr.sort lvl     => return lvl
   | Expr.mvar mvarId  =>
     if (← mvarId.isReadOnlyOrSyntheticOpaque) then
-      throwTypeExcepted type
+      throwTypeExpected type
     else
       let lvl ← mkFreshLevelMVar
       mvarId.assign (mkSort lvl)
       return lvl
-  | _ => throwTypeExcepted type
+  | _ => throwTypeExpected type
 
 private def inferForallType (e : Expr) : MetaM Expr :=
   forallTelescope e fun xs e => do
@@ -151,7 +151,7 @@ private def inferForallType (e : Expr) : MetaM Expr :=
 private def inferLambdaType (e : Expr) : MetaM Expr :=
   lambdaLetTelescope e fun xs e => do
     let type ← inferType e
-    mkForallFVars xs type
+    mkForallFVars (generalizeNondepLet := false) xs type
 
 def throwUnknownMVar {α} (mvarId : MVarId) : MetaM α :=
   throwError "unknown metavariable '?{mvarId.name}'"
@@ -189,10 +189,10 @@ because it overrides unrelated configurations.
 @[inline] def withInferTypeConfig (x : MetaM α) : MetaM α :=
   withAtLeastTransparency .default do
     let cfg ← getConfig
-    if cfg.beta && cfg.iota && cfg.zeta && cfg.zetaDelta && cfg.proj == .yesWithDelta then
+    if cfg.beta && cfg.iota && cfg.zeta && cfg.zetaHave && cfg.zetaDelta && cfg.proj == .yesWithDelta then
       x
     else
-      withConfig (fun cfg => { cfg with beta := true, iota := true, zeta := true, zetaDelta := true, proj := .yesWithDelta }) x
+      withConfig (fun cfg => { cfg with beta := true, iota := true, zeta := true, zetaHave := true, zetaDelta := true, proj := .yesWithDelta }) x
 
 @[export lean_infer_type]
 def inferTypeImp (e : Expr) : MetaM Expr :=

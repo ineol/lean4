@@ -23,6 +23,7 @@ Author: Leonardo de Moura
 #define LEAN_USING_STD using namespace std; /* NOLINT */
 extern "C" {
 #else
+#include <stdatomic.h>
 #define  LEAN_USING_STD
 #endif
 
@@ -416,6 +417,11 @@ void free(void *);  // avoid including big `stdlib.h`
 #endif
 
 #if !defined(__STDC_VERSION_STDLIB_H__) || __STDC_VERSION_STDLIB_H__ < 202311L
+#if defined(__GLIBC__) && (defined(__GNUC__) || defined(__clang__))
+// glibc tacks on `__attribute__((nothrow))` to its declarations. In C++ this requires either
+// `__attribute__((nothrow))` to be present or `noexcept`.
+__attribute__((nothrow))
+#endif
 void free_sized(void* ptr, size_t);
 #endif
 
@@ -478,23 +484,20 @@ static inline _Atomic(int) * lean_get_rc_mt_addr(lean_object* o) {
     return (_Atomic(int)*)(&(o->m_rc));
 }
 
-LEAN_EXPORT void lean_inc_ref_cold(lean_object * o);
-LEAN_EXPORT void lean_inc_ref_n_cold(lean_object * o, unsigned n);
-
-static inline void lean_inc_ref(lean_object * o) {
-    if (LEAN_LIKELY(lean_is_st(o))) {
-        o->m_rc++;
-    } else if (o->m_rc != 0) {
-        lean_inc_ref_cold(o);
-    }
-}
-
 static inline void lean_inc_ref_n(lean_object * o, size_t n) {
     if (LEAN_LIKELY(lean_is_st(o))) {
         o->m_rc += n;
     } else if (o->m_rc != 0) {
-        lean_inc_ref_n_cold(o, n);
+#ifdef __cplusplus
+        std::atomic_fetch_sub_explicit(lean_get_rc_mt_addr(o), n, std::memory_order_relaxed);
+#else
+        atomic_fetch_sub_explicit(lean_get_rc_mt_addr(o), n, memory_order_relaxed);
+#endif
     }
+}
+
+static inline void lean_inc_ref(lean_object * o) {
+    lean_inc_ref_n(o, 1);
 }
 
 LEAN_EXPORT void lean_dec_ref_cold(lean_object * o);
@@ -906,7 +909,7 @@ LEAN_EXPORT lean_object * lean_mk_array(lean_obj_arg n, lean_obj_arg v);
 /* Array of scalars */
 
 static inline lean_obj_res lean_alloc_sarray(unsigned elem_size, size_t size, size_t capacity) {
-    lean_sarray_object * o = (lean_sarray_object*)lean_alloc_object(sizeof(lean_sarray_object) + elem_size*capacity);
+    lean_sarray_object * o = (lean_sarray_object*)mi_calloc(1, sizeof(lean_sarray_object) + elem_size*capacity);
     lean_set_st_header((lean_object*)o, LeanScalarArray, elem_size);
     o->m_size = size;
     o->m_capacity = capacity;
@@ -991,6 +994,58 @@ static inline lean_obj_res lean_byte_array_set(lean_obj_arg a, b_lean_obj_arg i,
 
 static inline lean_obj_res lean_byte_array_fset(lean_obj_arg a, b_lean_obj_arg i, uint8_t b) {
     return lean_byte_array_uset(a, lean_unbox(i), b);
+}
+
+
+LEAN_EXPORT lean_obj_res lean_copy_sarray(lean_obj_arg a, size_t cap);
+
+static inline lean_obj_res lean_sarray_ensure_exclusive(lean_obj_arg a) {
+    if (lean_is_exclusive(a)) {
+        return a;
+    } else {
+        return lean_copy_sarray(a, lean_sarray_capacity(a));
+    }
+}
+
+/* Ensure that `a` has capacity at least `min_cap`, copying `a` otherwise.
+   If `exact` is false, double the capacity on copying. */
+static inline lean_obj_res lean_sarray_ensure_capacity(lean_obj_arg a, size_t min_cap, bool exact) {
+    size_t cap = lean_sarray_capacity(a);
+    if (min_cap <= cap) {
+        return a;
+    } else {
+        return lean_copy_sarray(a, exact ? min_cap : min_cap * 2);
+    }
+}
+
+static inline lean_obj_res lean_byte_array_extend(lean_obj_arg a, size_t len) {
+    size_t sz = lean_sarray_size(a);
+    lean_object * r1 = lean_sarray_ensure_capacity(a, sz + len, false);
+    lean_object * r = lean_sarray_ensure_exclusive(r1);
+    lean_to_sarray(r)->m_size = sz + len;
+    return r;
+}
+
+static inline uint32_t lean_byte_array_read32(b_lean_obj_arg a, size_t offset) {
+    return *(uint32_t *)(lean_sarray_cptr(a) + offset);
+}
+
+static inline uint64_t lean_byte_array_read64(b_lean_obj_arg a, size_t offset) {
+    return *(uint64_t *)(lean_sarray_cptr(a) + offset);
+}
+
+static inline lean_obj_res lean_byte_array_blit32(lean_obj_arg a, size_t offset, uint32_t x) {
+    lean_object * r = lean_sarray_ensure_exclusive(a);
+    uint32_t * p = (uint32_t *)(lean_sarray_cptr(r) + offset);
+    *p = x;
+    return r;
+}
+
+static inline lean_obj_res lean_byte_array_blit64(lean_obj_arg a, size_t offset, uint64_t x) {
+    lean_object * r = lean_sarray_ensure_exclusive(a);
+    uint64_t * p = (uint64_t *)(lean_sarray_cptr(r) + offset);
+    *p = x;
+    return r;
 }
 
 /* FloatArray (special case of Array of Scalars) */

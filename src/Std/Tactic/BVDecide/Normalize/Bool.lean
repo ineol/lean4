@@ -7,6 +7,7 @@ prelude
 import Init.SimpLemmas
 import Init.Data.Bool
 import Init.Data.BitVec.Lemmas
+import Init.Data.BitVec.Decidable
 
 /-!
 This module contains the `Bool` simplifying part of the `bv_normalize` simp set.
@@ -41,7 +42,7 @@ theorem if_eq_cond {b : Bool} {x y : α} : (if b = true then x else y) = (bif b 
   rw [cond_eq_if]
 
 @[bv_normalize]
-theorem Bool.not_xor : ∀ (a b : Bool), !(a ^^ b) = (a == b) := by decide
+theorem Bool.not_xor : ∀ (a b : Bool), (!(a ^^ b)) = (a == b) := by decide
 
 @[bv_normalize]
 theorem Bool.not_beq_one : ∀ (a : BitVec 1), (!(a == 1#1)) = (a == 0#1) := by
@@ -300,4 +301,3 @@ theorem Bool.and_right (lhs rhs : Bool) (h : (lhs && rhs) = true) : rhs = true :
 
 end Normalize
 end Std.Tactic.BVDecide
-

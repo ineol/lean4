@@ -6,9 +6,14 @@ Author: Leonardo de Moura
 module
 
 prelude
-import Init.SimpLemmas
-import Init.Data.Nat.Basic
-import Init.Data.List.Notation
+public import Init.SimpLemmas
+public import Init.Data.Nat.Basic
+public import Init.Data.List.Notation
+public import Init.Data.Nat.Div.Basic
+
+public section
+
+@[expose] section
 
 /-!
 # Basic operations on `List`.
@@ -584,7 +589,7 @@ Examples:
 * `[1, 2, 3, 4].reverse = [4, 3, 2, 1]`
 * `[].reverse = []`
 -/
-def reverse (as : List α) : List α :=
+@[expose] def reverse (as : List α) : List α :=
   reverseAux as []
 
 @[simp, grind] theorem reverse_nil : reverse ([] : List α) = [] := rfl
@@ -670,7 +675,7 @@ instance : Std.Associative (α := List α) (· ++ ·) := ⟨append_assoc⟩
 theorem append_cons (as : List α) (b : α) (bs : List α) : as ++ b :: bs = as ++ [b] ++ bs := by
   simp
 
-@[simp] theorem concat_eq_append {as : List α} {a : α} : as.concat a = as ++ [a] := by
+@[simp, grind =] theorem concat_eq_append {as : List α} {a : α} : as.concat a = as ++ [a] := by
   induction as <;> simp [concat, *]
 
 theorem reverseAux_eq_append {as bs : List α} : reverseAux as bs = reverseAux as [] ++ bs := by
@@ -713,7 +718,7 @@ Examples:
  * `List.singleton "green" = ["green"]`.
  * `List.singleton [1, 2, 3] = [[1, 2, 3]]`
 -/
-@[inline] protected def singleton {α : Type u} (a : α) : List α := [a]
+@[inline, expose] protected def singleton {α : Type u} (a : α) : List α := [a]
 
 /-! ### flatMap -/
 
@@ -727,9 +732,9 @@ Examples:
 -/
 @[inline] def flatMap {α : Type u} {β : Type v} (b : α → List β) (as : List α) : List β := flatten (map b as)
 
-@[simp, grind] theorem flatMap_nil {f : α → List β} : List.flatMap f [] = [] := by simp [flatten, List.flatMap]
+@[simp, grind] theorem flatMap_nil {f : α → List β} : List.flatMap f [] = [] := by simp [List.flatMap]
 @[simp, grind] theorem flatMap_cons {x : α} {xs : List α} {f : α → List β} :
-  List.flatMap f (x :: xs) = f x ++ List.flatMap f xs := by simp [flatten, List.flatMap]
+  List.flatMap f (x :: xs) = f x ++ List.flatMap f xs := by simp [List.flatMap]
 
 /-! ### replicate -/
 
@@ -750,7 +755,7 @@ def replicate : (n : Nat) → (a : α) → List α
 @[simp, grind] theorem length_replicate {n : Nat} {a : α} : (replicate n a).length = n := by
   induction n with
   | zero => simp
-  | succ n ih => simp only [ih, replicate_succ, length_cons, Nat.succ_eq_add_one]
+  | succ n ih => simp only [ih, replicate_succ, length_cons]
 
 /-! ## Additional functions -/
 
@@ -889,7 +894,7 @@ theorem mem_of_elem_eq_true [BEq α] [LawfulBEq α] {a : α} {as : List α} : el
   | a'::as =>
     simp [elem]
     split
-    next h => intros; simp [BEq.beq] at h; subst h; apply Mem.head
+    next h => intros; simp at h; subst h; apply Mem.head
     next _ => intro h; exact Mem.tail _ (mem_of_elem_eq_true h)
 
 theorem elem_eq_true_of_mem [BEq α] [ReflBEq α] {a : α} {as : List α} (h : a ∈ as) : elem a as = true := by
@@ -900,13 +905,13 @@ theorem elem_eq_true_of_mem [BEq α] [ReflBEq α] {a : α} {as : List α} (h : a
 instance [BEq α] [LawfulBEq α] (a : α) (as : List α) : Decidable (a ∈ as) :=
   decidable_of_decidable_of_iff (Iff.intro mem_of_elem_eq_true elem_eq_true_of_mem)
 
-@[grind] theorem mem_append_left {a : α} {as : List α} (bs : List α) : a ∈ as → a ∈ as ++ bs := by
+theorem mem_append_left {a : α} {as : List α} (bs : List α) : a ∈ as → a ∈ as ++ bs := by
   intro h
   induction h with
   | head => apply Mem.head
   | tail => apply Mem.tail; assumption
 
-@[grind] theorem mem_append_right {b : α} (as : List α) {bs : List α} : b ∈ bs → b ∈ as ++ bs := by
+theorem mem_append_right {b : α} (as : List α) {bs : List α} : b ∈ bs → b ∈ as ++ bs := by
   intro h
   induction as with
   | nil  => simp [h]
@@ -1188,10 +1193,10 @@ def isPrefixOf [BEq α] : List α → List α → Bool
   | _,     []    => false
   | a::as, b::bs => a == b && isPrefixOf as bs
 
-@[simp] theorem isPrefixOf_nil_left [BEq α] : isPrefixOf ([] : List α) l = true := by
+@[simp, grind =] theorem isPrefixOf_nil_left [BEq α] : isPrefixOf ([] : List α) l = true := by
   simp [isPrefixOf]
-@[simp] theorem isPrefixOf_cons_nil [BEq α] : isPrefixOf (a::as) ([] : List α) = false := rfl
-theorem isPrefixOf_cons₂ [BEq α] {a : α} :
+@[simp, grind =] theorem isPrefixOf_cons_nil [BEq α] : isPrefixOf (a::as) ([] : List α) = false := rfl
+@[grind =] theorem isPrefixOf_cons₂ [BEq α] {a : α} :
     isPrefixOf (a::as) (b::bs) = (a == b && isPrefixOf as bs) := rfl
 
 /--
@@ -1227,7 +1232,7 @@ Examples:
 def isSuffixOf [BEq α] (l₁ l₂ : List α) : Bool :=
   isPrefixOf l₁.reverse l₂.reverse
 
-@[simp] theorem isSuffixOf_nil_left [BEq α] : isSuffixOf ([] : List α) l = true := by
+@[simp, grind =] theorem isSuffixOf_nil_left [BEq α] : isSuffixOf ([] : List α) l = true := by
   simp [isSuffixOf]
 
 /--
@@ -1562,8 +1567,8 @@ protected def erase {α} [BEq α] : List α → α → List α
     | true  => as
     | false => a :: List.erase as b
 
-@[simp] theorem erase_nil [BEq α] (a : α) : [].erase a = [] := rfl
-theorem erase_cons [BEq α] {a b : α} {l : List α} :
+@[simp, grind =] theorem erase_nil [BEq α] (a : α) : [].erase a = [] := rfl
+@[grind =] theorem erase_cons [BEq α] {a b : α} {l : List α} :
     (b :: l).erase a = if b == a then l else b :: l.erase a := by
   simp only [List.erase]; split <;> simp_all
 
@@ -1622,8 +1627,8 @@ def find? (p : α → Bool) : List α → Option α
     | true  => some a
     | false => find? p as
 
-@[simp] theorem find?_nil : ([] : List α).find? p = none := rfl
-theorem find?_cons : (a::as).find? p = match p a with | true => some a | false => as.find? p :=
+@[simp, grind =] theorem find?_nil : ([] : List α).find? p = none := rfl
+@[grind =]theorem find?_cons : (a::as).find? p = match p a with | true => some a | false => as.find? p :=
   rfl
 
 /-! ### findSome? -/
@@ -1777,7 +1782,7 @@ where
   | a :: l, i, h =>
     if p a then
       some ⟨i, by
-        simp only [Nat.add_comm _ i, ← Nat.add_assoc] at h
+        simp only [Nat.add_comm _ i] at h
         exact Nat.lt_of_add_right_lt (Nat.lt_of_succ_le (Nat.le_of_eq h))⟩
     else
       go l (i + 1) (by simp at h; simpa [← Nat.add_assoc, Nat.add_right_comm] using h)
@@ -1843,8 +1848,8 @@ def lookup [BEq α] : α → List (α × β) → Option β
     | true  => some b
     | false => lookup a as
 
-@[simp] theorem lookup_nil [BEq α] : ([] : List (α × β)).lookup a = none := rfl
-theorem lookup_cons [BEq α] {k : α} :
+@[simp, grind =] theorem lookup_nil [BEq α] : ([] : List (α × β)).lookup a = none := rfl
+@[grind =] theorem lookup_cons [BEq α] {k : α} :
     ((k, b)::as).lookup a = match a == k with | true => some b | false => as.lookup a :=
   rfl
 
@@ -2012,7 +2017,7 @@ def zip : List α → List β → List (Prod α β) :=
   zipWith Prod.mk
 
 @[simp] theorem zip_nil_left : zip ([] : List α) (l : List β)  = [] := rfl
-@[simp] theorem zip_nil_right : zip (l : List α) ([] : List β)  = [] := by simp [zip, zipWith]
+@[simp] theorem zip_nil_right : zip (l : List α) ([] : List β)  = [] := by simp [zip]
 @[simp] theorem zip_cons_cons : zip (a :: as) (b :: bs) = (a, b) :: zip as bs := rfl
 
 /-! ### zipWithAll -/
@@ -2094,7 +2099,7 @@ where
   | 0,   acc => acc
   | n+1, acc => loop n (n::acc)
 
-@[simp] theorem range_zero : range 0 = [] := rfl
+@[simp, grind =] theorem range_zero : range 0 = [] := rfl
 
 /-! ### range' -/
 

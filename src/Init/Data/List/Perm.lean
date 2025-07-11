@@ -6,9 +6,12 @@ Authors: Leonardo de Moura, Jeremy Avigad, Mario Carneiro
 module
 
 prelude
-import Init.Data.List.Pairwise
-import Init.Data.List.Erase
-import Init.Data.List.Find
+public import Init.Data.List.Pairwise
+public import Init.Data.List.Erase
+public import Init.Data.List.Find
+public import all Init.Data.List.Attach
+
+public section
 
 /-!
 # List Permutations
@@ -22,8 +25,7 @@ The notation `~` is used for permutation equivalence.
 -/
 
 set_option linter.listVariables true -- Enforce naming conventions for `List`/`Array`/`Vector` variables.
--- TODO: restore after an update-stage0
--- set_option linter.indexVariables true -- Enforce naming conventions for index variables.
+set_option linter.indexVariables true -- Enforce naming conventions for index variables.
 
 open Nat
 
@@ -89,6 +91,9 @@ theorem Perm.mem_iff {a : α} {l₁ l₂ : List α} (p : l₁ ~ l₂) : a ∈ l�
   | swap => simp only [mem_cons, or_left_comm]
   | trans _ _ ih₁ ih₂ => simp only [ih₁, ih₂]
 
+grind_pattern Perm.mem_iff => l₁ ~ l₂, a ∈ l₁
+grind_pattern Perm.mem_iff => l₁ ~ l₂, a ∈ l₂
+
 theorem Perm.subset {l₁ l₂ : List α} (p : l₁ ~ l₂) : l₁ ⊆ l₂ := fun _ => p.mem_iff.mp
 
 theorem Perm.append_right {l₁ l₂ : List α} (t₁ : List α) (p : l₁ ~ l₂) : l₁ ++ t₁ ~ l₂ ++ t₁ := by
@@ -105,8 +110,14 @@ theorem Perm.append_left {t₁ t₂ : List α} : ∀ l : List α, t₁ ~ t₂ �
 theorem Perm.append {l₁ l₂ t₁ t₂ : List α} (p₁ : l₁ ~ l₂) (p₂ : t₁ ~ t₂) : l₁ ++ t₁ ~ l₂ ++ t₂ :=
   (p₁.append_right t₁).trans (p₂.append_left l₂)
 
+grind_pattern Perm.append => l₁ ~ l₂, t₁ ~ t₂, l₁ ++ t₁
+grind_pattern Perm.append => l₁ ~ l₂, t₁ ~ t₂, l₂ ++ t₂
+
 theorem Perm.append_cons (a : α) {l₁ l₂ r₁ r₂ : List α} (p₁ : l₁ ~ l₂) (p₂ : r₁ ~ r₂) :
     l₁ ++ a :: r₁ ~ l₂ ++ a :: r₂ := p₁.append (p₂.cons a)
+
+grind_pattern Perm.append_cons => l₁ ~ l₂, r₁ ~ r₂, l₁ ++ a :: r₁
+grind_pattern Perm.append_cons => l₁ ~ l₂, r₁ ~ r₂, l₂ ++ a :: r₂
 
 @[simp] theorem perm_middle {a : α} : ∀ {l₁ l₂ : List α}, l₁ ++ a :: l₂ ~ a :: (l₁ ++ l₂)
   | [], _ => .refl _
@@ -189,12 +200,18 @@ theorem Perm.filterMap (f : α → Option β) {l₁ l₂ : List α} (p : l₁ ~ 
     filterMap f l₁ ~ filterMap f l₂ := by
   induction p with
   | nil => simp
-  | cons x _p IH => cases h : f x <;> simp [h, filterMap_cons, IH, Perm.cons]
-  | swap x y l₂ => cases hx : f x <;> cases hy : f y <;> simp [hx, hy, filterMap_cons, swap]
+  | cons x _p IH => cases h : f x <;> simp [h, IH, Perm.cons]
+  | swap x y l₂ => cases hx : f x <;> cases hy : f y <;> simp [hx, hy, swap]
   | trans _p₁ _p₂ IH₁ IH₂ => exact IH₁.trans IH₂
+
+grind_pattern Perm.filterMap => l₁ ~ l₂, filterMap f l₁
+grind_pattern Perm.filterMap => l₁ ~ l₂, filterMap f l₂
 
 theorem Perm.map (f : α → β) {l₁ l₂ : List α} (p : l₁ ~ l₂) : map f l₁ ~ map f l₂ :=
   filterMap_eq_map ▸ p.filterMap _
+
+grind_pattern Perm.map => l₁ ~ l₂, map f l₁
+grind_pattern Perm.map => l₁ ~ l₂, map f l₂
 
 theorem Perm.pmap {p : α → Prop} (f : ∀ a, p a → β) {l₁ l₂ : List α} (p : l₁ ~ l₂) {H₁ H₂} :
     pmap f l₁ H₁ ~ pmap f l₂ H₂ := by
@@ -204,11 +221,17 @@ theorem Perm.pmap {p : α → Prop} (f : ∀ a, p a → β) {l₁ l₂ : List α
   | swap x y => simp [swap]
   | trans _p₁ p₂ IH₁ IH₂ => exact IH₁.trans (IH₂ (H₁ := fun a m => H₂ a (p₂.subset m)))
 
+grind_pattern Perm.pmap => l₁ ~ l₂, pmap f l₁ H₁
+grind_pattern Perm.pmap => l₁ ~ l₂, pmap f l₂ H₂
+
 theorem Perm.unattach {α : Type u} {p : α → Prop} {l₁ l₂ : List { x // p x }} (h : l₁ ~ l₂) :
     l₁.unattach.Perm l₂.unattach := h.map _
 
 theorem Perm.filter (p : α → Bool) {l₁ l₂ : List α} (s : l₁ ~ l₂) :
     filter p l₁ ~ filter p l₂ := by rw [← filterMap_eq_filter]; apply s.filterMap
+
+grind_pattern Perm.filter => l₁ ~ l₂, filter p l₁
+grind_pattern Perm.filter => l₁ ~ l₂, filter p l₂
 
 theorem filter_append_perm (p : α → Bool) (l : List α) :
     filter p l ++ filter (fun x => !p x) l ~ l := by
@@ -320,9 +343,9 @@ theorem Perm.foldr_eq' {f : α → β → β} {l₁ l₂ : List α} (p : l₁ ~ 
     intros; apply comm <;> apply p₁.symm.subset <;> assumption
 
 theorem Perm.rec_heq {β : List α → Sort _} {f : ∀ a l, β l → β (a :: l)} {b : β []} {l l' : List α}
-    (hl : l ~ l') (f_congr : ∀ {a l l' b b'}, l ~ l' → HEq b b' → HEq (f a l b) (f a l' b'))
-    (f_swap : ∀ {a a' l b}, HEq (f a (a' :: l) (f a' l b)) (f a' (a :: l) (f a l b))) :
-    HEq (@List.rec α β b f l) (@List.rec α β b f l') := by
+    (hl : l ~ l') (f_congr : ∀ {a l l' b b'}, l ~ l' → b ≍ b' → f a l b ≍ f a l' b')
+    (f_swap : ∀ {a a' l b}, f a (a' :: l) (f a' l b) ≍ f a' (a :: l) (f a l b)) :
+    @List.rec α β b f l ≍ @List.rec α β b f l' := by
   induction hl with
   | nil => rfl
   | cons a h ih => exact f_congr h ih
@@ -387,12 +410,16 @@ theorem Perm.erase (a : α) {l₁ l₂ : List α} (p : l₁ ~ l₂) : l₁.erase
     have h₂ : a ∉ l₂ := mt p.mem_iff.2 h₁
     rw [erase_of_not_mem h₁, erase_of_not_mem h₂]; exact p
 
+grind_pattern Perm.erase => l₁ ~ l₂, l₁.erase a
+grind_pattern Perm.erase => l₁ ~ l₂, l₂.erase a
+
 theorem cons_perm_iff_perm_erase {a : α} {l₁ l₂ : List α} :
     a :: l₁ ~ l₂ ↔ a ∈ l₂ ∧ l₁ ~ l₂.erase a := by
   refine ⟨fun h => ?_, fun ⟨m, h⟩ => (h.cons a).trans (perm_cons_erase m).symm⟩
   have : a ∈ l₂ := h.subset mem_cons_self
   exact ⟨this, (h.trans <| perm_cons_erase this).cons_inv⟩
 
+@[grind =]
 theorem perm_iff_count {l₁ l₂ : List α} : l₁ ~ l₂ ↔ ∀ a, count a l₁ = count a l₂ := by
   refine ⟨Perm.count_eq, fun H => ?_⟩
   induction l₁ generalizing l₂ with
@@ -409,9 +436,15 @@ theorem perm_iff_count {l₁ l₂ : List α} : l₁ ~ l₂ ↔ ∀ a, count a l�
     rw [(perm_cons_erase this).count_eq] at H
     by_cases h : b = a <;> simpa [h, count_cons, Nat.succ_inj] using H
 
+theorem Perm.count (h : l₁ ~ l₂) (a : α) : count a l₁ = count a l₂ := by
+  rw [perm_iff_count.mp h]
+
+grind_pattern Perm.count => l₁ ~ l₂, count a l₁
+grind_pattern Perm.count => l₁ ~ l₂, count a l₂
+
 theorem isPerm_iff : ∀ {l₁ l₂ : List α}, l₁.isPerm l₂ ↔ l₁ ~ l₂
   | [], [] => by simp [isPerm, isEmpty]
-  | [], _ :: _ => by simp [isPerm, isEmpty, Perm.nil_eq]
+  | [], _ :: _ => by simp [isPerm, isEmpty]
   | a :: l₁, l₂ => by simp [isPerm, isPerm_iff, cons_perm_iff_perm_erase]
 
 instance decidablePerm {α} [DecidableEq α] (l₁ l₂ : List α) : Decidable (l₁ ~ l₂) := decidable_of_iff _ isPerm_iff
@@ -423,6 +456,9 @@ protected theorem Perm.insert (a : α) {l₁ l₂ : List α} (p : l₁ ~ l₂) :
   else
     have := p.cons a
     simpa [h, mt p.mem_iff.2 h] using this
+
+grind_pattern Perm.insert => l₁ ~ l₂, l₁.insert a
+grind_pattern Perm.insert => l₁ ~ l₂, l₂.insert a
 
 theorem perm_insert_swap (x y : α) (l : List α) :
     List.insert x (List.insert y l) ~ List.insert y (List.insert x l) := by
@@ -490,6 +526,9 @@ theorem Perm.nodup {l l' : List α} (hl : l ~ l') (hR : l.Nodup) : l'.Nodup := h
 theorem Perm.nodup_iff {l₁ l₂ : List α} : l₁ ~ l₂ → (Nodup l₁ ↔ Nodup l₂) :=
   Perm.pairwise_iff <| @Ne.symm α
 
+grind_pattern Perm.nodup_iff => l₁ ~ l₂, Nodup l₁
+grind_pattern Perm.nodup_iff => l₁ ~ l₂, Nodup l₂
+
 theorem Perm.flatten {l₁ l₂ : List (List α)} (h : l₁ ~ l₂) : l₁.flatten ~ l₂.flatten := by
   induction h with
   | nil => rfl
@@ -540,19 +579,29 @@ theorem perm_insertIdx {α} (x : α) (l : List α) {i} (h : i ≤ l.length) :
 
 namespace Perm
 
-theorem take {l₁ l₂ : List α} (h : l₁ ~ l₂) {n : Nat} (w : l₁.drop n ~ l₂.drop n) :
-    l₁.take n ~ l₂.take n := by
+theorem take {l₁ l₂ : List α} (h : l₁ ~ l₂) {i : Nat} (w : l₁.drop i ~ l₂.drop i) :
+    l₁.take i ~ l₂.take i := by
   classical
   rw [perm_iff_count] at h w ⊢
-  rw [← take_append_drop n l₁, ← take_append_drop n l₂] at h
+  rw [← take_append_drop i l₁, ← take_append_drop i l₂] at h
   simpa only [count_append, w, Nat.add_right_cancel_iff] using h
 
-theorem drop {l₁ l₂ : List α} (h : l₁ ~ l₂) {n : Nat} (w : l₁.take n ~ l₂.take n) :
-    l₁.drop n ~ l₂.drop n := by
+theorem drop {l₁ l₂ : List α} (h : l₁ ~ l₂) {i : Nat} (w : l₁.take i ~ l₂.take i) :
+    l₁.drop i ~ l₂.drop i := by
   classical
   rw [perm_iff_count] at h w ⊢
-  rw [← take_append_drop n l₁, ← take_append_drop n l₂] at h
+  rw [← take_append_drop i l₁, ← take_append_drop i l₂] at h
   simpa only [count_append, w, Nat.add_left_cancel_iff] using h
+
+theorem sum_nat {l₁ l₂ : List Nat} (h : l₁ ~ l₂) : l₁.sum = l₂.sum := by
+  induction h with
+  | nil => simp
+  | cons _ _ ih => simp [ih]
+  | swap => simpa [List.sum_cons] using Nat.add_left_comm ..
+  | trans _ _ ih₁ ih₂ => simp [ih₁, ih₂]
+
+grind_pattern Perm.sum_nat => l₁ ~ l₂, l₁.sum
+grind_pattern Perm.sum_nat => l₁ ~ l₂, l₂.sum
 
 end Perm
 

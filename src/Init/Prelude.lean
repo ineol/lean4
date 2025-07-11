@@ -6,7 +6,10 @@ Authors: Leonardo de Moura, Mario Carneiro
 module
 
 prelude -- Don't import Init, because we're in Init itself
+
+public section
 set_option linter.missingDocs true -- keep it documented
+@[expose] section  -- Expose all defs
 
 /-!
 # Init.Prelude
@@ -60,17 +63,14 @@ Examples:
   fun _ => a
 
 /--
-The encoding of `let_fun x := v; b` is `letFun v (fun x => b)`.
+`letFun v (fun x => b)` is a function version of `have x := v; b`.
 This is equal to `(fun x => b) v`, so the value of `x` is not accessible to `b`.
 This is in contrast to `let x := v; b`, where the value of `x` is accessible to `b`.
 
-There is special support for `letFun`.
-Both WHNF and `simp` are aware of `letFun` and can reduce it when zeta reduction is enabled,
-despite the fact it is marked `irreducible`.
-For metaprogramming, the function `Lean.Expr.letFun?` can be used to recognize a `let_fun` expression
-to extract its parts as if it were a `let` expression.
+This used to be the way `have`/`let_fun` syntax was encoded,
+and there used to be special support for `letFun` in WHNF and `simp`.
 -/
-@[irreducible] def letFun {α : Sort u} {β : α → Sort v} (v : α) (f : (x : α) → β x) : β v := f v
+def letFun {α : Sort u} {β : α → Sort v} (v : α) (f : (x : α) → β x) : β v := f v
 
 set_option checkBinderAnnotations false in
 /--
@@ -466,16 +466,16 @@ Unsafe auxiliary constant used by the compiler to erase `Quot.lift`.
 unsafe axiom Quot.lcInv {α : Sort u} {r : α → α → Prop} (q : Quot r) : α
 
 /--
-Heterogeneous equality. `HEq a b` asserts that `a` and `b` have the same
+Heterogeneous equality. `a ≍ b` asserts that `a` and `b` have the same
 type, and casting `a` across the equality yields `b`, and vice versa.
 
 You should avoid using this type if you can. Heterogeneous equality does not
 have all the same properties as `Eq`, because the assumption that the types of
 `a` and `b` are equal is often too weak to prove theorems of interest. One
-important non-theorem is the analogue of `congr`: If `HEq f g` and `HEq x y`
-and `f x` and `g y` are well typed it does not follow that `HEq (f x) (g y)`.
+public important non-theorem is the analogue of `congr`: If `f ≍ g` and `x ≍ y`
+and `f x` and `g y` are well typed it does not follow that `f x ≍ g y`.
 (This does follow if you have `f = g` instead.) However if `a` and `b` have
-the same type then `a = b` and `HEq a b` are equivalent.
+the same type then `a = b` and `a ≍ b` are equivalent.
 -/
 inductive HEq : {α : Sort u} → α → {β : Sort u} → β → Prop where
   /-- Reflexivity of heterogeneous equality. -/
@@ -588,7 +588,7 @@ theorem Or.neg_resolve_right (h : Or a (Not b)) (nb : b) : a := h.elim id (absur
 The Boolean values, `true` and `false`.
 
 Logically speaking, this is equivalent to `Prop` (the type of propositions). The distinction is
-important for programming: both propositions and their proofs are erased in the code generator,
+public important for programming: both propositions and their proofs are erased in the code generator,
 while `Bool` corresponds to the Boolean type in most programming languages and carries precisely one
 bit of run-time information.
 -/
@@ -857,7 +857,7 @@ instance : Inhabited NonemptyType.{u} where
 Lifts a type to a higher universe level.
 
 `ULift α` wraps a value of type `α`. Instead of occupying the same universe as `α`, which would be
-the minimal level, it takes a further level parameter and occupies their minimum. The resulting type
+the minimal level, it takes a further level parameter and occupies their maximum. The resulting type
 may occupy any universe that's at least as large as that of `α`.
 
 The resulting universe of the lifting operator is the first parameter, and may be written explicitly
@@ -885,6 +885,9 @@ theorem ULift.up_down {α : Type u} (b : ULift.{v} α) : Eq (up (down b)) b := r
 
 /-- Bijection between `α` and `ULift.{v} α` -/
 theorem ULift.down_up {α : Type u} (a : α) : Eq (down (up.{v} a)) a := rfl
+
+instance [Inhabited α] : Inhabited (ULift α) where
+  default := ULift.up default
 
 /--
 Either a proof that `p` is true or a proof that `p` is false. This is equivalent to a `Bool` paired
@@ -1345,6 +1348,23 @@ class HPow (α : Type u) (β : Type v) (γ : outParam (Type w)) where
   hPow : α → β → γ
 
 /--
+The notation typeclass for heterogeneous scalar multiplication.
+This enables the notation `a • b : γ` where `a : α`, `b : β`.
+
+It is assumed to represent a left action in some sense.
+The notation `a • b` is augmented with a macro (below) to have it elaborate as a left action.
+Only the `b` argument participates in the elaboration algorithm: the algorithm uses the type of `b`
+when calculating the type of the surrounding arithmetic expression
+and it tries to insert coercions into `b` to get some `b'`
+such that `a • b'` has the same type as `b'`.
+See the module documentation near the macro for more details.
+-/
+class HSMul (α : Type u) (β : Type v) (γ : outParam (Type w)) where
+  /-- `a • b` computes the product of `a` and `b`.
+  The meaning of this notation is type-dependent, but it is intended to be used for left actions. -/
+  hSMul : α → β → γ
+
+/--
 The notation typeclass for heterogeneous append.
 This enables the notation `a ++ b : γ` where `a : α`, `b : β`.
 -/
@@ -1451,6 +1471,15 @@ class Div (α : Type u) where
   /-- `a / b` computes the result of dividing `a` by `b`. See `HDiv`. -/
   div : α → α → α
 
+/--
+The notation typeclass for inverses.
+This enables the notation `a⁻¹ : α` where `a : α`.
+-/
+class Inv (α : Type u) where
+  /-- `a⁻¹` computes the inverse of `a`.
+  The meaning of this notation is type-dependent. -/
+  inv : α → α
+
 /-- The homogeneous version of `HMod`: `a % b : α` where `a b : α`. -/
 class Mod (α : Type u) where
   /-- `a % b` computes the remainder upon dividing `a` by `b`. See `HMod`. -/
@@ -1496,6 +1525,12 @@ such as `(2.2 ^ 2.2 : Float)` to elaborate. -/
 class HomogeneousPow (α : Type u) where
   /-- `a ^ b` computes `a` to the power of `b` where `a` and `b` both have the same type. -/
   protected pow : α → α → α
+
+/-- Typeclass for types with a scalar multiplication operation, denoted `•` (`\bu`) -/
+class SMul (M : Type u) (α : Type v) where
+  /-- `a • b` computes the product of `a` and `b`. The meaning of this notation is type-dependent,
+  but it is intended to be used for left actions. -/
+  smul : M → α → α
 
 /-- The homogeneous version of `HAppend`: `a ++ b : α` where `a b : α`. -/
 class Append (α : Type u) where
@@ -1589,6 +1624,13 @@ instance [HomogeneousPow α] : Pow α α where
   pow a b := HomogeneousPow.pow a b
 
 @[default_instance]
+instance instHSMul {α β} [SMul α β] : HSMul α β β where
+  hSMul := SMul.smul
+
+instance (priority := 910) {α : Type u} [Mul α] : SMul α α where
+  smul x y := Mul.mul x y
+
+@[default_instance]
 instance [Append α] : HAppend α α α where
   hAppend a b := Append.append a b
 
@@ -1652,7 +1694,7 @@ instance instAddNat : Add Nat where
 
 /- We mark the following definitions as pattern to make sure they can be used in recursive equations,
    and reduced by the equation Compiler. -/
-attribute [match_pattern] Nat.add Add.add HAdd.hAdd Neg.neg Mul.mul HMul.hMul
+attribute [match_pattern] Nat.add Add.add HAdd.hAdd Neg.neg Mul.mul HMul.hMul Inv.inv
 
 set_option bootstrap.genMatcherCode false in
 /--
@@ -2065,6 +2107,7 @@ Return the underlying `Nat` that represents a bitvector.
 
 This is O(1) because `BitVec` is a (zero-cost) wrapper around a `Nat`.
 -/
+@[expose]
 protected def BitVec.toNat (x : BitVec w) : Nat := x.toFin.val
 
 instance : LT (BitVec w) where lt := (LT.lt ·.toNat ·.toNat)
@@ -2290,8 +2333,8 @@ Examples:
 def UInt32.decLe (a b : UInt32) : Decidable (LE.le a b) :=
   inferInstanceAs (Decidable (LE.le a.toBitVec b.toBitVec))
 
-instance (a b : UInt32) : Decidable (LT.lt a b) := UInt32.decLt a b
-instance (a b : UInt32) : Decidable (LE.le a b) := UInt32.decLe a b
+attribute [instance] UInt32.decLt UInt32.decLe
+
 instance : Max UInt32 := maxOfLe
 instance : Min UInt32 := minOfLe
 
@@ -2456,8 +2499,12 @@ Pack a `Nat` encoding a valid codepoint into a `Char`.
 This function is overridden with a native implementation.
 -/
 @[extern "lean_uint32_of_nat"]
-def Char.ofNatAux (n : @& Nat) (h : n.isValidChar) : Char :=
-  { val := ⟨BitVec.ofNatLT n (isValidChar_UInt32 h)⟩, valid := h }
+def Char.ofNatAux (n : @& Nat) (h : n.isValidChar) : Char where
+  val := ⟨BitVec.ofNatLT n
+    -- We would conventionally use `by exact` here to enter a private context, but `exact` does not
+    -- exist here yet.
+    (private_decl% isValidChar_UInt32 h)⟩
+  valid := h
 
 /--
 Converts a `Nat` into a `Char`. If the `Nat` does not encode a valid Unicode scalar value, `'\0'` is
@@ -2523,7 +2570,7 @@ Examples:
  * `(some "hello").getD "goodbye" = "hello"`
  * `none.getD "goodbye" = "hello"`
 -/
-@[macro_inline] def Option.getD (opt : Option α) (dflt : α) : α :=
+@[macro_inline, expose] def Option.getD (opt : Option α) (dflt : α) : α :=
   match opt with
   | some x => x
   | none => dflt
@@ -2749,7 +2796,7 @@ instance : Inhabited Substring where
 /--
 The number of bytes used by the string's UTF-8 encoding.
 -/
-@[inline] def Substring.bsize : Substring → Nat
+@[inline, expose] def Substring.bsize : Substring → Nat
   | ⟨_, b, e⟩ => e.byteIdx.sub b.byteIdx
 
 /--
@@ -2939,7 +2986,7 @@ def Array.mkEmpty {α : Type u} (c : @& Nat) : Array α where
 /--
 Constructs a new empty array with initial capacity `c`.
 -/
-@[extern "lean_mk_empty_array_with_capacity"]
+@[extern "lean_mk_empty_array_with_capacity", expose]
 def Array.emptyWithCapacity {α : Type u} (c : @& Nat) : Array α where
   toList := List.nil
 
@@ -2948,6 +2995,7 @@ Constructs a new empty array with initial capacity `0`.
 
 Use `Array.emptyWithCapacity` to create an array with a greater initial capacity.
 -/
+@[expose]
 def Array.empty {α : Type u} : Array α := emptyWithCapacity 0
 
 /--
@@ -2957,7 +3005,7 @@ This is a cached value, so it is `O(1)` to access. The space allocated for an ar
 its _capacity_, is at least as large as its size, but may be larger. The capacity of an array is an
 internal detail that's not observable by Lean code.
 -/
-@[reducible, extern "lean_array_get_size"]
+@[extern "lean_array_get_size"]
 def Array.size {α : Type u} (a : @& Array α) : Nat :=
  a.toList.length
 
@@ -3009,7 +3057,7 @@ Examples:
 * `#[].push "apple" = #["apple"]`
 * `#["apple"].push "orange" = #["apple", "orange"]`
 -/
-@[extern "lean_array_push"]
+@[extern "lean_array_push", expose]
 def Array.push {α : Type u} (a : Array α) (v : α) : Array α where
   toList := List.concat a.toList v
 
@@ -4047,7 +4095,12 @@ protected opaque String.hash (s : @& String) : UInt64
 instance : Hashable String where
   hash := String.hash
 
+end  -- don't expose `Lean` defs
+
 namespace Lean
+
+open BEq (beq)
+open HAdd (hAdd)
 
 /--
 Hierarchical names consist of a sequence of components, each of
@@ -4133,35 +4186,35 @@ abbrev mkSimple (s : String) : Name :=
   .str .anonymous s
 
 /-- Make name `s₁` -/
-@[reducible] def mkStr1 (s₁ : String) : Name :=
+@[expose, reducible] def mkStr1 (s₁ : String) : Name :=
   .str .anonymous s₁
 
 /-- Make name `s₁.s₂` -/
-@[reducible] def mkStr2 (s₁ s₂ : String) : Name :=
+@[expose, reducible] def mkStr2 (s₁ s₂ : String) : Name :=
   .str (.str .anonymous s₁) s₂
 
 /-- Make name `s₁.s₂.s₃` -/
-@[reducible] def mkStr3 (s₁ s₂ s₃ : String) : Name :=
+@[expose, reducible] def mkStr3 (s₁ s₂ s₃ : String) : Name :=
   .str (.str (.str .anonymous s₁) s₂) s₃
 
 /-- Make name `s₁.s₂.s₃.s₄` -/
-@[reducible] def mkStr4 (s₁ s₂ s₃ s₄ : String) : Name :=
+@[expose, reducible] def mkStr4 (s₁ s₂ s₃ s₄ : String) : Name :=
   .str (.str (.str (.str .anonymous s₁) s₂) s₃) s₄
 
 /-- Make name `s₁.s₂.s₃.s₄.s₅` -/
-@[reducible] def mkStr5 (s₁ s₂ s₃ s₄ s₅ : String) : Name :=
+@[expose, reducible] def mkStr5 (s₁ s₂ s₃ s₄ s₅ : String) : Name :=
   .str (.str (.str (.str (.str .anonymous s₁) s₂) s₃) s₄) s₅
 
 /-- Make name `s₁.s₂.s₃.s₄.s₅.s₆` -/
-@[reducible] def mkStr6 (s₁ s₂ s₃ s₄ s₅ s₆ : String) : Name :=
+@[expose, reducible] def mkStr6 (s₁ s₂ s₃ s₄ s₅ s₆ : String) : Name :=
   .str (.str (.str (.str (.str (.str .anonymous s₁) s₂) s₃) s₄) s₅) s₆
 
 /-- Make name `s₁.s₂.s₃.s₄.s₅.s₆.s₇` -/
-@[reducible] def mkStr7 (s₁ s₂ s₃ s₄ s₅ s₆ s₇ : String) : Name :=
+@[expose, reducible] def mkStr7 (s₁ s₂ s₃ s₄ s₅ s₆ s₇ : String) : Name :=
   .str (.str (.str (.str (.str (.str (.str .anonymous s₁) s₂) s₃) s₄) s₅) s₆) s₇
 
 /-- Make name `s₁.s₂.s₃.s₄.s₅.s₆.s₇.s₈` -/
-@[reducible] def mkStr8 (s₁ s₂ s₃ s₄ s₅ s₆ s₇ s₈ : String) : Name :=
+@[expose, reducible] def mkStr8 (s₁ s₂ s₃ s₄ s₅ s₆ s₇ s₈ : String) : Name :=
   .str (.str (.str (.str (.str (.str (.str (.str .anonymous s₁) s₂) s₃) s₄) s₅) s₆) s₇) s₈
 
 /-- (Boolean) equality comparator for names. -/
@@ -4191,7 +4244,9 @@ def defaultMaxRecDepth := 512
 
 /-- The message to display on stack overflow. -/
 def maxRecDepthErrorMessage : String :=
-  "maximum recursion depth has been reached\nuse `set_option maxRecDepth <num>` to increase limit\nuse `set_option diagnostics true` to get diagnostic information"
+  "maximum recursion depth has been reached\n\
+   use `set_option maxRecDepth <num>` to increase limit\n\
+   use `set_option diagnostics true` to get diagnostic information"
 
 /-! # Syntax -/
 
@@ -4410,7 +4465,7 @@ def Syntax.node8 (info : SourceInfo) (kind : SyntaxNodeKind) (a₁ a₂ a₃ a�
 Singleton `SyntaxNodeKinds` are extremely common. They are written as name literals, rather than as
 lists; list syntax is required only for empty or non-singleton sets of kinds.
 -/
-def SyntaxNodeKinds := List SyntaxNodeKind
+@[expose] def SyntaxNodeKinds := List SyntaxNodeKind
 
 /--
 Typed syntax, which tracks the potential kinds of the `Syntax` it contains.
@@ -5095,9 +5150,11 @@ end Syntax
 namespace Macro
 
 /-- References -/
-private opaque MethodsRefPointed : NonemptyType.{0}
+-- TODO: make private again and make Nonempty instance no_expose instead after bootstrapping
+opaque MethodsRefPointed : NonemptyType.{0}
 
-private def MethodsRef : Type := MethodsRefPointed.type
+set_option linter.missingDocs false in
+@[expose] def MethodsRef : Type := MethodsRefPointed.type
 
 instance : Nonempty MethodsRef := MethodsRefPointed.property
 

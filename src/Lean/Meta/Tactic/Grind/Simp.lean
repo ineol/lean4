@@ -10,15 +10,25 @@ import Lean.Meta.Tactic.Simp.Main
 import Lean.Meta.Tactic.Grind.Util
 import Lean.Meta.Tactic.Grind.Types
 import Lean.Meta.Tactic.Grind.MatchDiscrOnly
-import Lean.Meta.Tactic.Grind.MarkNestedProofs
+import Lean.Meta.Tactic.Grind.MarkNestedSubsingletons
 import Lean.Meta.Tactic.Grind.Canon
 
 namespace Lean.Meta.Grind
+
 /-- Simplifies the given expression using the `grind` simprocs and normalization theorems. -/
-private def simpCore (e : Expr) : GrindM Simp.Result := do
-  let simpStats := (← get).simpStats
-  let (r, simpStats) ← Meta.simp e (← readThe Context).simp (← readThe Context).simprocs (stats := simpStats)
-  modify fun s => { s with simpStats }
+private def simpCore (e : Expr) : GrindM Simp.Result := do profileitM Exception "grind simp" (← getOptions) do
+  let simp ← modifyGet fun s => (s.simp, { s with simp := {} })
+  let ctx := (← readThe Context).simp
+  let (r, simp) ← Simp.mainCore e ctx simp (methods := (← readThe Context).simpMethods)
+  modify fun s => { s with simp }
+  return r
+
+/-- Similar to `simpCore`, but uses `dsimp`. -/
+def dsimpCore (e : Expr) : GrindM Expr := do profileitM Exception "grind dsimp" (← getOptions) do
+  let simp ← modifyGet fun s => (s.simp, { s with simp := {} })
+  let ctx := (← readThe Context).simp
+  let (r, simp) ← Simp.dsimpMainCore e ctx simp (methods := (← readThe Context).simpMethods)
+  modify fun s => { s with simp }
   return r
 
 /--
@@ -31,7 +41,7 @@ def preprocess (e : Expr) : GoalM Simp.Result := do
   let e' := r.expr
   let e' ← unfoldReducible e'
   let e' ← abstractNestedProofs e'
-  let e' ← markNestedProofs e'
+  let e' ← markNestedSubsingletons e'
   let e' ← eraseIrrelevantMData e'
   let e' ← foldProjs e'
   let e' ← normalizeLevels e'

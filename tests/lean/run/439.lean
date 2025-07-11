@@ -18,19 +18,25 @@ variable (fn : Fn ((p : P) -> B.fn p) ({p : P} -> B.fn p))
 variable (p : P)
 variable (Bp : Bar.fn p)
 /--
-error: function expected at
+error: Function expected at
   fn.imp
-term has type
+but this term has type
   Bar.fn ?_
+
+Note: Expected a function because this term is being applied to the argument
+  Bp
 -/
 #guard_msgs in
 #check fn Bp
 
 /--
-error: function expected at
+error: Function expected at
   fn.imp
-term has type
+but this term has type
   Bar.fn ?_
+
+Note: Expected a function because this term is being applied to the argument
+  p
 -/
 #guard_msgs in
 #check fn p
@@ -44,12 +50,12 @@ variable (fn' : Fn ((p : P) -> B.fn p -> B.fn p) ({p : P} -> B.fn p -> B.fn p))
 /--
 error: Application type mismatch: In the application
   fn'.imp p
-the final argument
+the argument
   p
 has type
-  P : Sort u
+  P
 but is expected to have type
-  Bar.fn ?_ : Sort _
+  Bar.fn ?_
 -/
 #guard_msgs in
 #check fn' p

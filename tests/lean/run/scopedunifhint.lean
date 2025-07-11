@@ -30,12 +30,12 @@ def x : Nat := 10
 /--
 error: Application type mismatch: In the application
   mul ?_ x
-the final argument
+the argument
   x
 has type
-  Nat : Type
+  Nat
 but is expected to have type
-  Magma.α ?_ : Type _
+  Magma.α ?_
 -/
 #guard_msgs in
 #check mul x x           -- Error: unification hint is not active
@@ -43,12 +43,12 @@ but is expected to have type
 /--
 error: Application type mismatch: In the application
   mul ?_ (x, x)
-the final argument
+the argument
   (x, x)
 has type
-  Nat × Nat : Type
+  Nat × Nat
 but is expected to have type
-  Magma.α ?_ : Type _
+  Magma.α ?_
 -/
 #guard_msgs in
 #check mul (x, x) (x, x) -- Error: no unification hint
@@ -58,12 +58,12 @@ local infix:65 (priority := high) "*" => mul
 /--
 error: Application type mismatch: In the application
   ?_*x
-the final argument
+the argument
   x
 has type
-  Nat : Type
+  Nat
 but is expected to have type
-  Magma.α ?_ : Type _
+  Magma.α ?_
 -/
 #guard_msgs in
 #check x*x -- Error: unification hint is not active
@@ -76,12 +76,12 @@ open Algebra -- activate unification hints
 /--
 error: Application type mismatch: In the application
   ?_*(x, x)
-the final argument
+the argument
   (x, x)
 has type
-  Nat × Nat : Type
+  Nat × Nat
 but is expected to have type
-  Magma.α ?_ : Type _
+  Magma.α ?_
 -/
 #guard_msgs in
 #check mul (x, x) (x, x) -- still error
@@ -104,12 +104,12 @@ end Sec1
 /--
 error: Application type mismatch: In the application
   ?_*(x, x)
-the final argument
+the argument
   (x, x)
 has type
-  Nat × Nat : Type
+  Nat × Nat
 but is expected to have type
-  Magma.α ?_ : Type _
+  Magma.α ?_
 -/
 #guard_msgs in
 #check (x, x) * (x, x) -- error, local hint is not active after end of section anymore

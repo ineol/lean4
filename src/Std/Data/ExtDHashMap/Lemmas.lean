@@ -28,9 +28,9 @@ variable {m : ExtDHashMap α β}
 
 @[simp, grind =]
 theorem isEmpty_iff [EquivBEq α] [LawfulHashable α] : m.isEmpty ↔ m = ∅ := by
-  rcases m with ⟨m⟩
+  cases m with | mk m
   refine m.equiv_empty_iff_isEmpty.symm.trans ?_
-  exact ⟨fun h => Quotient.sound h, Quotient.exact⟩
+  exact ⟨fun h => sound h, exact⟩
 
 @[simp]
 theorem isEmpty_eq_false_iff [EquivBEq α] [LawfulHashable α] : m.isEmpty = false ↔ ¬m = ∅ :=
@@ -51,7 +51,7 @@ theorem not_insert_eq_empty [EquivBEq α] [LawfulHashable α] {k : α} {v : β k
 theorem mem_iff_contains [EquivBEq α] [LawfulHashable α] {a : α} : a ∈ m ↔ m.contains a :=
   Iff.rfl
 
-@[simp, grind =]
+@[simp, grind _=_]
 theorem contains_iff_mem [EquivBEq α] [LawfulHashable α] {a : α} : m.contains a ↔ a ∈ m :=
   Iff.rfl
 
@@ -124,17 +124,15 @@ theorem size_insert_le [EquivBEq α] [LawfulHashable α] {k : α} {v : β k} : (
 
 @[simp, grind =]
 theorem erase_empty [EquivBEq α] [LawfulHashable α] {k : α} : (∅ : ExtDHashMap α β).erase k = ∅ :=
-  congrArg Quotient.mk' DHashMap.erase_empty
+  congrArg mk DHashMap.erase_empty
 
 @[simp]
 theorem erase_eq_empty_iff [EquivBEq α] [LawfulHashable α] {k : α} :
     m.erase k = ∅ ↔ m = ∅ ∨ m.size = 1 ∧ k ∈ m := by
-  apply isEmpty_iff.symm.trans
-  rcases m with ⟨m⟩
-  rw [← isEmpty_iff]
-  dsimp only [erase, isEmpty, Quotient.mk', Quotient.mk, Quotient.lift]
-  simp only [DHashMap.isEmpty_erase, Bool.or_eq_true, Bool.and_eq_true, beq_iff_eq]
-  rfl
+  cases m with | mk m
+  simp only [← isEmpty_iff, ← decide_eq_decide, Bool.decide_eq_true, Bool.decide_or,
+    Bool.decide_and, mem_iff_contains]
+  exact DHashMap.isEmpty_erase
 
 @[simp, grind =]
 theorem contains_erase [EquivBEq α] [LawfulHashable α] {k a : α} :
@@ -170,7 +168,7 @@ theorem containsThenInsert_fst [EquivBEq α] [LawfulHashable α] {k : α} {v : �
 
 @[simp, grind =]
 theorem containsThenInsert_snd [EquivBEq α] [LawfulHashable α] {k : α} {v : β k} : (m.containsThenInsert k v).2 = m.insert k v :=
-  m.inductionOn fun _ => congrArg Quotient.mk' DHashMap.containsThenInsert_snd
+  m.inductionOn fun _ => congrArg mk DHashMap.containsThenInsert_snd
 
 @[simp, grind =]
 theorem containsThenInsertIfNew_fst [EquivBEq α] [LawfulHashable α] {k : α} {v : β k} :
@@ -180,7 +178,7 @@ theorem containsThenInsertIfNew_fst [EquivBEq α] [LawfulHashable α] {k : α} {
 @[simp, grind =]
 theorem containsThenInsertIfNew_snd [EquivBEq α] [LawfulHashable α] {k : α} {v : β k} :
     (m.containsThenInsertIfNew k v).2 = m.insertIfNew k v :=
-  m.inductionOn fun _ => congrArg Quotient.mk' DHashMap.containsThenInsertIfNew_snd
+  m.inductionOn fun _ => congrArg mk DHashMap.containsThenInsertIfNew_snd
 
 @[simp, grind =]
 theorem get?_empty [LawfulBEq α] {a : α} : (∅ : ExtDHashMap α β).get? a = none :=
@@ -197,7 +195,7 @@ theorem get?_insert_self [LawfulBEq α] {k : α} {v : β k} : (m.insert k v).get
 theorem contains_eq_isSome_get? [LawfulBEq α] {a : α} : m.contains a = (m.get? a).isSome :=
   m.inductionOn fun _ => DHashMap.contains_eq_isSome_get?
 
-@[simp]
+@[simp, grind =]
 theorem isSome_get?_eq_contains [LawfulBEq α] {a : α} : (m.get? a).isSome = m.contains a :=
   contains_eq_isSome_get?.symm
 
@@ -244,7 +242,7 @@ theorem contains_eq_isSome_get? [EquivBEq α] [LawfulHashable α] {a : α} :
     m.contains a = (get? m a).isSome :=
   m.inductionOn fun _ => DHashMap.Const.contains_eq_isSome_get?
 
-@[simp]
+@[simp, grind =]
 theorem isSome_get?_eq_contains [EquivBEq α] [LawfulHashable α] {a : α} :
     (get? m a).isSome = m.contains a :=
   contains_eq_isSome_get?.symm
@@ -305,7 +303,7 @@ theorem get_eq_get_get? [LawfulBEq α] {a : α} {h} :
     m.get a h = (m.get? a).get (mem_iff_isSome_get?.mp h) :=
   m.inductionOn (fun _ _ => DHashMap.get_eq_get_get?) h
 
-@[grind =]theorem get_get? [LawfulBEq α] {a : α} {h} :
+@[grind =] theorem get_get? [LawfulBEq α] {a : α} {h} :
     (m.get? a).get h = m.get a (mem_iff_isSome_get?.mpr h) :=
   m.inductionOn (fun _ _ => DHashMap.get_get?) h
 
@@ -405,7 +403,7 @@ variable {β : Type v} {m : ExtDHashMap α (fun _ => β)}
 theorem get!_empty [EquivBEq α] [LawfulHashable α] [Inhabited β] {a : α} : get! (∅ : ExtDHashMap α (fun _ => β)) a = default :=
   DHashMap.Const.get!_empty
 
-@[grind =]theorem get!_insert [EquivBEq α] [LawfulHashable α] [Inhabited β] {k a : α} {v : β} :
+@[grind =] theorem get!_insert [EquivBEq α] [LawfulHashable α] [Inhabited β] {k a : α} {v : β} :
     get! (m.insert k v) a = if k == a then v else get! m a :=
   m.inductionOn fun _ => DHashMap.Const.get!_insert
 
@@ -462,7 +460,7 @@ theorem getD_empty [LawfulBEq α] {a : α} {fallback : β a} :
     (∅ : ExtDHashMap α β).getD a fallback = fallback :=
   DHashMap.getD_empty
 
-@[grind =]theorem getD_insert [LawfulBEq α] {k a : α} {fallback : β a} {v : β k} :
+@[grind =] theorem getD_insert [LawfulBEq α] {k a : α} {fallback : β a} {v : β k} :
     (m.insert k v).getD a fallback =
       if h : k == a then cast (congrArg β (eq_of_beq h)) v else m.getD a fallback :=
   m.inductionOn fun _ => DHashMap.getD_insert
@@ -591,7 +589,7 @@ theorem contains_eq_isSome_getKey? [EquivBEq α] [LawfulHashable α] {a : α} :
     m.contains a = (m.getKey? a).isSome :=
   m.inductionOn fun _ => DHashMap.contains_eq_isSome_getKey?
 
-@[simp]
+@[simp, grind =]
 theorem isSome_getKey?_eq_contains [EquivBEq α] [LawfulHashable α] {a : α} :
     (m.getKey? a).isSome = m.contains a :=
   contains_eq_isSome_getKey?.symm
@@ -931,7 +929,7 @@ theorem getThenInsertIfNew?_fst [LawfulBEq α] {k : α} {v : β k} :
 @[simp, grind =]
 theorem getThenInsertIfNew?_snd [LawfulBEq α] {k : α} {v : β k} :
     (m.getThenInsertIfNew? k v).2 = m.insertIfNew k v :=
-  m.inductionOn fun _ => congrArg Quotient.mk' DHashMap.getThenInsertIfNew?_snd
+  m.inductionOn fun _ => congrArg mk DHashMap.getThenInsertIfNew?_snd
 
 namespace Const
 
@@ -944,7 +942,7 @@ theorem getThenInsertIfNew?_fst [EquivBEq α] [LawfulHashable α] {k : α} {v : 
 @[simp, grind =]
 theorem getThenInsertIfNew?_snd [EquivBEq α] [LawfulHashable α] {k : α} {v : β} :
     (getThenInsertIfNew? m k v).2 = m.insertIfNew k v :=
-  m.inductionOn fun _ => congrArg Quotient.mk' DHashMap.Const.getThenInsertIfNew?_snd
+  m.inductionOn fun _ => congrArg mk DHashMap.Const.getThenInsertIfNew?_snd
 
 end Const
 
@@ -965,7 +963,7 @@ theorem insertMany_cons [EquivBEq α] [LawfulHashable α]
     m.insertMany (p :: l) = (m.insert p.1 p.2).insertMany l := by
   rcases p with ⟨k, v⟩
   unfold insertMany
-  simp only [Id.pure_eq, Id.bind_eq, Id.run, List.forIn_yield_eq_foldl, List.foldl_cons]
+  simp only [bind_pure_comp, map_pure, List.forIn_pure_yield_eq_foldl, List.foldl_cons, Id.run_pure]
   refine Eq.trans ?_ (Eq.symm ?_ : l.foldl (fun b a => b.insert a.1 a.2) (m.insert k v) = _)
   exact (List.foldl_hom (f := Subtype.val) fun x y => rfl).symm
   exact (List.foldl_hom (f := Subtype.val) fun x y => rfl).symm
@@ -980,17 +978,17 @@ theorem insertMany_append [EquivBEq α] [LawfulHashable α] {l₁ l₂ : List ((
 
 private theorem insertMany_list_mk [EquivBEq α] [LawfulHashable α]
     {m : DHashMap α β} {l : List ((a : α) × β a)} :
-    (ExtDHashMap.insertMany (Quotient.mk _ m) l : ExtDHashMap α β) = Quotient.mk _ (m.insertMany l) := by
-  simp only [Quotient.mk]
+    (ExtDHashMap.insertMany (mk m) l : ExtDHashMap α β) = mk (m.insertMany l) := by
+  simp only [mk, Quotient.mk]
   induction l generalizing m with
   | nil => rfl
   | cons x l ih =>
     rcases x with ⟨k, v⟩
-    simp only [insertMany_cons, DHashMap.insertMany_cons, insert,
-      Quotient.mk', Quotient.mk, Quotient.lift, ih]
+    simp only [insertMany_cons, insert, mk, Quotient.mk, ih, DHashMap.insertMany_cons]
 
 @[elab_as_elim]
-theorem insertMany_ind [EquivBEq α] [LawfulHashable α] {motive : ExtDHashMap α β → Prop} (m : ExtDHashMap α β) (l : ρ)
+theorem insertMany_ind [EquivBEq α] [LawfulHashable α] {motive : ExtDHashMap α β → Prop}
+    (m : ExtDHashMap α β) (l : ρ)
     (init : motive m) (insert : ∀ m a b, motive m → motive (m.insert a b)) :
     motive (m.insertMany l) := by
   change motive (Subtype.val ?my_mvar)
@@ -1228,7 +1226,7 @@ theorem insertMany_cons [EquivBEq α] [LawfulHashable α] {l : List (α × β)} 
     insertMany m (p :: l) = insertMany (m.insert p.1 p.2) l := by
   rcases p with ⟨k, v⟩
   unfold insertMany
-  simp only [Id.pure_eq, Id.bind_eq, Id.run, List.forIn_yield_eq_foldl, List.foldl_cons]
+  simp only [bind_pure_comp, map_pure, List.forIn_pure_yield_eq_foldl, List.foldl_cons, Id.run_pure]
   refine Eq.trans ?_ (Eq.symm ?_ : l.foldl (fun b a => b.insert a.1 a.2) (m.insert k v) = _)
   exact (List.foldl_hom (f := Subtype.val) fun x y => rfl).symm
   exact (List.foldl_hom (f := Subtype.val) fun x y => rfl).symm
@@ -1243,15 +1241,14 @@ theorem insertMany_append [EquivBEq α] [LawfulHashable α] {l₁ l₂ : List (�
 
 private theorem insertMany_list_mk [EquivBEq α] [LawfulHashable α]
     {m : DHashMap α fun _ => β} {l : List (α × β)} :
-    (insertMany (Quotient.mk _ m) l : ExtDHashMap α fun _ => β) =
-      Quotient.mk _ (DHashMap.Const.insertMany m l) := by
-  simp only [Quotient.mk]
+    (insertMany (mk m) l : ExtDHashMap α fun _ => β) =
+      mk (DHashMap.Const.insertMany m l) := by
+  simp only [mk, Quotient.mk]
   induction l generalizing m with
   | nil => rfl
   | cons x l ih =>
     rcases x with ⟨k, v⟩
-    simp only [insertMany_cons, DHashMap.Const.insertMany_cons, insert,
-      Quotient.mk', Quotient.mk, Quotient.lift, ih]
+    simp only [insertMany_cons, insert, mk, Quotient.mk, ih, DHashMap.Const.insertMany_cons]
 
 @[elab_as_elim]
 theorem insertMany_ind [EquivBEq α] [LawfulHashable α] {motive : ExtDHashMap α (fun _ => β) → Prop}
@@ -1492,21 +1489,21 @@ theorem insertManyIfNewUnit_list_singleton [EquivBEq α] [LawfulHashable α] {k 
 theorem insertManyIfNewUnit_cons [EquivBEq α] [LawfulHashable α] {l : List α} {k : α} :
     insertManyIfNewUnit m (k :: l) = insertManyIfNewUnit (m.insertIfNew k ()) l := by
   unfold insertManyIfNewUnit
-  simp only [Id.pure_eq, Id.bind_eq, Id.run, List.forIn_yield_eq_foldl, List.foldl_cons]
+  simp only [bind_pure_comp, map_pure, List.forIn_pure_yield_eq_foldl, List.foldl_cons, Id.run_pure]
   refine Eq.trans ?_ (Eq.symm ?_ : l.foldl (fun b a => b.insertIfNew a ()) (m.insertIfNew k ()) = _)
   exact (List.foldl_hom (f := Subtype.val) fun x y => rfl).symm
   exact (List.foldl_hom (f := Subtype.val) fun x y => rfl).symm
 
 private theorem insertManyIfNewUnit_list_mk [EquivBEq α] [LawfulHashable α]
     {m : DHashMap α fun _ => Unit} {l : List α} :
-    (insertManyIfNewUnit (Quotient.mk _ m) l : ExtDHashMap α fun _ => Unit) =
-      Quotient.mk _ (DHashMap.Const.insertManyIfNewUnit m l) := by
-  simp only [Quotient.mk]
+    (insertManyIfNewUnit (mk m) l : ExtDHashMap α fun _ => Unit) =
+      mk (DHashMap.Const.insertManyIfNewUnit m l) := by
+  simp only [mk, Quotient.mk]
   induction l generalizing m with
   | nil => rfl
   | cons x l ih =>
-    simp only [insertManyIfNewUnit_cons, DHashMap.Const.insertManyIfNewUnit_cons, insertIfNew,
-      Quotient.mk', Quotient.mk, Quotient.lift, ih]
+    simp only [insertManyIfNewUnit_cons, insertIfNew, mk, Quotient.mk, ih,
+      DHashMap.Const.insertManyIfNewUnit_cons]
 
 @[elab_as_elim]
 theorem insertManyIfNewUnit_ind [EquivBEq α] [LawfulHashable α] {motive : ExtDHashMap α (fun _ => Unit) → Prop}
@@ -1714,12 +1711,12 @@ theorem ofList_singleton [EquivBEq α] [LawfulHashable α] {k : α} {v : β k} :
 theorem ofList_cons [EquivBEq α] [LawfulHashable α] {k : α} {v : β k} {tl : List ((a : α) × β a)} :
     ofList (⟨k, v⟩ :: tl) = ((∅ : ExtDHashMap α β).insert k v).insertMany tl := by
   conv => rhs; apply insertMany_list_mk
-  exact congrArg Quotient.mk' DHashMap.ofList_cons
+  exact congrArg mk DHashMap.ofList_cons
 
 theorem ofList_eq_insertMany_empty [EquivBEq α] [LawfulHashable α] {l : List ((a : α) × β a)} :
     ofList l = insertMany (∅ : ExtDHashMap α β) l := by
   conv => rhs; apply insertMany_list_mk
-  exact congrArg Quotient.mk' DHashMap.ofList_eq_insertMany_empty
+  exact congrArg mk DHashMap.ofList_eq_insertMany_empty
 
 @[simp, grind =]
 theorem contains_ofList [EquivBEq α] [LawfulHashable α]
@@ -1867,12 +1864,12 @@ theorem ofList_singleton [EquivBEq α] [LawfulHashable α] {k : α} {v : β} :
 theorem ofList_cons [EquivBEq α] [LawfulHashable α] {k : α} {v : β} {tl : List (α × β)} :
     ofList (⟨k, v⟩ :: tl) = insertMany ((∅ : ExtDHashMap α (fun _ => β)).insert k v) tl := by
   conv => rhs; apply insertMany_list_mk
-  exact congrArg Quotient.mk' DHashMap.Const.ofList_cons
+  exact congrArg mk DHashMap.Const.ofList_cons
 
 theorem ofList_eq_insertMany_empty [EquivBEq α] [LawfulHashable α] {l : List (α × β)} :
     ofList l = insertMany (∅ : ExtDHashMap α (fun _ => β)) l := by
   conv => rhs; apply insertMany_list_mk
-  exact congrArg Quotient.mk' DHashMap.Const.ofList_eq_insertMany_empty
+  exact congrArg mk DHashMap.Const.ofList_eq_insertMany_empty
 
 @[simp, grind =]
 theorem contains_ofList [EquivBEq α] [LawfulHashable α]
@@ -2005,18 +2002,18 @@ theorem ofList_eq_empty_iff [EquivBEq α] [LawfulHashable α] {l : List (α × �
 @[simp]
 theorem unitOfList_nil [EquivBEq α] [LawfulHashable α] :
     unitOfList ([] : List α) = ∅ :=
-  congrArg Quotient.mk' DHashMap.Const.unitOfList_nil
+  congrArg mk DHashMap.Const.unitOfList_nil
 
 @[simp]
 theorem unitOfList_singleton [EquivBEq α] [LawfulHashable α] {k : α} :
     unitOfList [k] = (∅ : ExtDHashMap α (fun _ => Unit)).insertIfNew k () :=
-  congrArg Quotient.mk' DHashMap.Const.unitOfList_singleton
+  congrArg mk DHashMap.Const.unitOfList_singleton
 
 theorem unitOfList_cons [EquivBEq α] [LawfulHashable α] {hd : α} {tl : List α} :
     unitOfList (hd :: tl) =
       insertManyIfNewUnit ((∅ : ExtDHashMap α (fun _ => Unit)).insertIfNew hd ()) tl := by
   conv => rhs; apply insertManyIfNewUnit_list_mk
-  exact congrArg Quotient.mk' DHashMap.Const.unitOfList_cons
+  exact congrArg mk DHashMap.Const.unitOfList_cons
 
 @[simp]
 theorem contains_unitOfList [EquivBEq α] [LawfulHashable α]
@@ -2125,16 +2122,14 @@ section Alter
 
 theorem alter_eq_empty_iff_erase_eq_empty [LawfulBEq α] {k : α} {f : Option (β k) → Option (β k)} :
     m.alter k f = ∅ ↔ m.erase k = ∅ ∧ f (m.get? k) = none := by
-  rcases m with ⟨m⟩
-  simp only [← isEmpty_iff]
-  dsimp only [isEmpty, alter, Quotient.lift, Quotient.mk', Quotient.mk]
-  simp only [DHashMap.isEmpty_alter_eq_isEmpty_erase, Bool.and_eq_true, Option.isNone_iff_eq_none]
-  rfl
+  cases m with | mk m
+  simpa only [← isEmpty_iff, ← Option.isNone_iff_eq_none, ← Bool.and_eq_true, Bool.coe_iff_coe] using
+    DHashMap.isEmpty_alter_eq_isEmpty_erase
 
 @[simp]
 theorem alter_eq_empty_iff [LawfulBEq α] {k : α} {f : Option (β k) → Option (β k)} :
     alter m k f = ∅ ↔ (m = ∅ ∨ (m.size = 1 ∧ k ∈ m)) ∧ f (get? m k) = none := by
-  simp only [alter_eq_empty_iff_erase_eq_empty, erase_eq_empty_iff]
+  rw [alter_eq_empty_iff_erase_eq_empty, erase_eq_empty_iff]
 
 @[grind =] theorem contains_alter [LawfulBEq α] {k k' : α} {f : Option (β k) → Option (β k)} :
     (m.alter k f).contains k' = if k == k' then (f (m.get? k)).isSome else m.contains k' :=
@@ -2319,12 +2314,9 @@ variable {β : Type v} {m : ExtDHashMap α (fun _ => β)}
 
 theorem alter_eq_empty_iff_erase_eq_empty [EquivBEq α] [LawfulHashable α] {k : α} {f : Option β → Option β} :
     alter m k f = ∅ ↔ m.erase k = ∅ ∧ f (get? m k) = none := by
-  rcases m with ⟨m⟩
-  simp only [← isEmpty_iff]
-  dsimp only [isEmpty, alter, Quotient.lift, Quotient.mk', Quotient.mk]
-  simp only [DHashMap.Const.isEmpty_alter_eq_isEmpty_erase, Bool.and_eq_true,
-    Option.isNone_iff_eq_none]
-  rfl
+  cases m with | mk m
+  simpa only [← isEmpty_iff, ← Option.isNone_iff_eq_none, ← Bool.and_eq_true, Bool.coe_iff_coe] using
+    DHashMap.Const.isEmpty_alter_eq_isEmpty_erase
 
 @[simp]
 theorem alter_eq_empty_iff [EquivBEq α] [LawfulHashable α] {k : α} {f : Option β → Option β} :
@@ -2803,7 +2795,7 @@ variable {m₁ m₂ : Std.ExtDHashMap α β}
 
 @[ext]
 theorem ext_get? [LawfulBEq α] {m₁ m₂ : Std.ExtDHashMap α β} (h : ∀ k, m₁.get? k = m₂.get? k) : m₁ = m₂ :=
-  m₁.inductionOn₂ m₂ (fun _ _ h => Quotient.sound (.of_forall_get?_eq h)) h
+  m₁.inductionOn₂ m₂ (fun _ _ h => sound (.of_forall_get?_eq h)) h
 
 namespace Const
 
@@ -2812,23 +2804,23 @@ variable {β : Type v} {m₁ m₂ : ExtDHashMap α fun _ => β}
 theorem ext_getKey_get? [EquivBEq α] [LawfulHashable α]
     (hk : ∀ k hk hk', m₁.getKey k hk = m₂.getKey k hk')
     (hv : ∀ k, Const.get? m₁ k = Const.get? m₂ k) : m₁ = m₂ :=
-  m₁.inductionOn₂ m₂ (fun _ _ hk hv => Quotient.sound
+  m₁.inductionOn₂ m₂ (fun _ _ hk hv => sound
     (.of_forall_getKey_eq_of_forall_constGet?_eq hk hv)) hk hv
 
 theorem ext_get? [LawfulBEq α] (h : ∀ k, get? m₁ k = get? m₂ k) : m₁ = m₂ :=
-  m₁.inductionOn₂ m₂ (fun _ _ h => Quotient.sound (.of_forall_constGet?_eq h)) h
+  m₁.inductionOn₂ m₂ (fun _ _ h => sound (.of_forall_constGet?_eq h)) h
 
 theorem ext_getKey?_unit [EquivBEq α] [LawfulHashable α] {m₁ m₂ : ExtDHashMap α fun _ => Unit}
     (h : ∀ k, m₁.getKey? k = m₂.getKey? k) : m₁ = m₂ :=
-  m₁.inductionOn₂ m₂ (fun _ _ h => Quotient.sound (.of_forall_getKey?_unit_eq h)) h
+  m₁.inductionOn₂ m₂ (fun _ _ h => sound (.of_forall_getKey?_unit_eq h)) h
 
 theorem ext_contains_unit [LawfulBEq α] {m₁ m₂ : ExtDHashMap α fun _ => Unit}
     (h : ∀ k, m₁.contains k = m₂.contains k) : m₁ = m₂ :=
-  m₁.inductionOn₂ m₂ (fun _ _ h => Quotient.sound (.of_forall_contains_unit_eq h)) h
+  m₁.inductionOn₂ m₂ (fun _ _ h => sound (.of_forall_contains_unit_eq h)) h
 
 theorem ext_mem_unit [LawfulBEq α] {m₁ m₂ : ExtDHashMap α fun _ => Unit}
     (h : ∀ k, k ∈ m₁ ↔ k ∈ m₂) : m₁ = m₂ :=
-  m₁.inductionOn₂ m₂ (fun _ _ h => Quotient.sound (.of_forall_mem_unit_iff h)) h
+  m₁.inductionOn₂ m₂ (fun _ _ h => sound (.of_forall_mem_unit_iff h)) h
 
 end Const
 
@@ -2965,12 +2957,19 @@ theorem size_filterMap_eq_size_iff [EquivBEq α] [LawfulHashable α]
     (m.filterMap f).size = m.size ↔ ∀ k h, (f (m.getKey k h) (Const.get m k h)).isSome :=
   m.inductionOn fun _ => DHashMap.Const.size_filterMap_eq_size_iff
 
-@[grind =]
+@[simp]
 theorem get?_filterMap [EquivBEq α] [LawfulHashable α]
     {f : α → β → Option γ} {k : α} :
     Const.get? (m.filterMap f) k = (Const.get? m k).pbind (fun x h' =>
       f (m.getKey k (mem_iff_isSome_get?.mpr (Option.isSome_of_eq_some h'))) x) :=
   m.inductionOn fun _ => DHashMap.Const.get?_filterMap
+
+/-- Simpler variant of `get?_filterMap` when `LawfulBEq` is available. -/
+@[grind =]
+theorem get?_filterMap' [LawfulBEq α] [LawfulHashable α]
+    {f : α → β → Option γ} {k : α} :
+    Const.get? (m.filterMap f) k = (Const.get? m k).bind (f k) := by
+  simp [get?_filterMap]
 
 theorem get?_filterMap_of_getKey?_eq_some [EquivBEq α] [LawfulHashable α]
     {f : α → β → Option γ} {k k' : α} (h : m.getKey? k = some k') :
@@ -2984,7 +2983,7 @@ theorem isSome_apply_of_mem_filterMap [EquivBEq α] [LawfulHashable α]
         (Const.get m k (mem_of_mem_filterMap h))).isSome :=
   m.inductionOn fun _ => DHashMap.Const.isSome_apply_of_mem_filterMap
 
-@[simp, grind =]
+@[simp]
 theorem get_filterMap [EquivBEq α] [LawfulHashable α]
     {f : α → β → Option γ} {k : α} {h} :
     Const.get (m.filterMap f) k h =
@@ -2993,7 +2992,13 @@ theorem get_filterMap [EquivBEq α] [LawfulHashable α]
           (isSome_apply_of_mem_filterMap h) :=
   m.inductionOn (fun _ _ => DHashMap.Const.get_filterMap) h
 
+/-- Simpler variant of `get_filterMap` when `LawfulBEq` is available. -/
 @[grind =]
+theorem get_filterMap' [LawfulBEq α] [LawfulHashable α]
+    {f : α → β → Option γ} {k : α} {h} :
+    Const.get (m.filterMap f) k h = (f k (Const.get m k (mem_of_mem_filterMap h))).get (by simpa using isSome_apply_of_mem_filterMap h) := by
+  simp [get_filterMap]
+
 theorem get!_filterMap [EquivBEq α] [LawfulHashable α] [Inhabited γ]
     {f : α → β → Option γ} {k : α} :
     Const.get! (m.filterMap f) k =
@@ -3001,18 +3006,31 @@ theorem get!_filterMap [EquivBEq α] [LawfulHashable α] [Inhabited γ]
         f (m.getKey k (mem_iff_isSome_get?.mpr (Option.isSome_of_eq_some h'))) x)).get! :=
   m.inductionOn fun _ => DHashMap.Const.get!_filterMap
 
+/-- Simpler variant of `get!_filterMap` when `LawfulBEq` is available. -/
+@[grind =]
+theorem get!_filterMap' [LawfulBEq α] [LawfulHashable α] [Inhabited γ]
+    {f : α → β → Option γ} {k : α} :
+    Const.get! (m.filterMap f) k = ((Const.get? m k).bind (f k)).get! := by
+  simp [get!_filterMap]
+
 theorem get!_filterMap_of_getKey?_eq_some [EquivBEq α] [LawfulHashable α] [Inhabited γ]
     {f : α → β → Option γ} {k k' : α} (h : m.getKey? k = some k') :
     Const.get! (m.filterMap f) k = ((Const.get? m k).bind (f k')).get! :=
   m.inductionOn (fun _ h => DHashMap.Const.get!_filterMap_of_getKey?_eq_some h) h
 
-@[grind =]
 theorem getD_filterMap [EquivBEq α] [LawfulHashable α]
     {f : α → β → Option γ} {k : α} {fallback : γ} :
     Const.getD (m.filterMap f) k fallback =
       ((Const.get? m k).pbind (fun x h' =>
       f (m.getKey k (mem_iff_isSome_get?.mpr (Option.isSome_of_eq_some h'))) x)).getD fallback :=
   m.inductionOn fun _ => DHashMap.Const.getD_filterMap
+
+/-- Simpler variant of `getD_filterMap` when `LawfulBEq` is available. -/
+@[grind =]
+theorem getD_filterMap' [LawfulBEq α] [LawfulHashable α]
+    {f : α → β → Option γ} {k : α} {fallback : γ} :
+    Const.getD (m.filterMap f) k fallback = ((Const.get? m k).bind (f k)).getD fallback := by
+  simp [getD_filterMap]
 
 theorem getD_filterMap_of_getKey?_eq_some [EquivBEq α] [LawfulHashable α]
     {f : α → β → Option γ} {k k' : α} {fallback : γ} (h : m.getKey? k = some k') :
@@ -3051,7 +3069,7 @@ section filter
 
 theorem filterMap_eq_filter [EquivBEq α] [LawfulHashable α] {f : (a : α) → β a → Bool} :
     m.filterMap (fun k => Option.guard (fun v => f k v)) = m.filter f :=
-  m.inductionOn fun _ => Quotient.sound DHashMap.filterMap_equiv_filter
+  m.inductionOn fun _ => sound DHashMap.filterMap_equiv_filter
 
 @[simp]
 theorem filter_eq_empty_iff [LawfulBEq α]
@@ -3095,11 +3113,11 @@ theorem size_filter_eq_size_iff [LawfulBEq α] {f : (a : α) → β a → Bool} 
 
 theorem filter_eq_self_iff [LawfulBEq α] {f : (a : α) → β a → Bool} :
     m.filter f = m ↔ ∀ k h, f k (m.get k h) :=
-  m.inductionOn fun _ => Iff.trans ⟨Quotient.exact, Quotient.sound⟩ DHashMap.filter_equiv_self_iff
+  m.inductionOn fun _ => Iff.trans ⟨exact, sound⟩ DHashMap.filter_equiv_self_iff
 
 theorem filter_key_equiv_self_iff [EquivBEq α] [LawfulHashable α] {f : (a : α) → Bool} :
     m.filter (fun k _ => f k) = m ↔ ∀ k h, f (m.getKey k h) :=
-  m.inductionOn fun _ => Iff.trans ⟨Quotient.exact, Quotient.sound⟩ DHashMap.filter_key_equiv_self_iff
+  m.inductionOn fun _ => Iff.trans ⟨exact, sound⟩ DHashMap.filter_key_equiv_self_iff
 
 theorem size_filter_key_eq_size_iff [EquivBEq α] [LawfulHashable α] {f : α → Bool} :
     (m.filter fun k _ => f k).size = m.size ↔ ∀ k h, f (m.getKey k h) :=
@@ -3203,13 +3221,20 @@ theorem size_filter_eq_size_iff [EquivBEq α] [LawfulHashable α]
 
 theorem filter_eq_self_iff [EquivBEq α] [LawfulHashable α] {f : α → β → Bool} :
     m.filter f = m ↔ ∀ k h, f (m.getKey k h) (Const.get m k h) :=
-  m.inductionOn fun _ => Iff.trans ⟨Quotient.exact, Quotient.sound⟩ DHashMap.Const.filter_equiv_self_iff
+  m.inductionOn fun _ => Iff.trans ⟨exact, sound⟩ DHashMap.Const.filter_equiv_self_iff
 
-@[grind =] theorem get?_filter [EquivBEq α] [LawfulHashable α]
+theorem get?_filter [EquivBEq α] [LawfulHashable α]
     {f : α → β → Bool} {k : α} :
     Const.get? (m.filter f) k = (Const.get? m k).pfilter (fun x h' =>
       f (m.getKey k (mem_iff_isSome_get?.mpr (Option.isSome_of_eq_some h'))) x) :=
   m.inductionOn fun _ => DHashMap.Const.get?_filter
+
+/-- Simpler variant of `get?_filter` when `LawfulBEq` is available. -/
+@[grind =]
+theorem get?_filter' [LawfulBEq α] [LawfulHashable α]
+    {f : α → β → Bool} {k : α} :
+    Const.get? (m.filter f) k = (Const.get? m k).filter (f k) := by
+  simp [get?_filter]
 
 theorem get?_filter_of_getKey?_eq_some [EquivBEq α] [LawfulHashable α]
     {f : α → β → Bool} {k k' : α} :
@@ -3223,12 +3248,19 @@ theorem get_filter [EquivBEq α] [LawfulHashable α]
     Const.get (m.filter f) k h' = Const.get m k (mem_of_mem_filter h') :=
   m.inductionOn (fun _ _ => DHashMap.Const.get_filter) h'
 
-@[grind =] theorem get!_filter [EquivBEq α] [LawfulHashable α] [Inhabited β]
+theorem get!_filter [EquivBEq α] [LawfulHashable α] [Inhabited β]
     {f : α → β → Bool} {k : α} :
     Const.get! (m.filter f) k =
       ((Const.get? m k).pfilter (fun x h' =>
       f (m.getKey k (mem_iff_isSome_get?.mpr (Option.isSome_of_eq_some h'))) x)).get! :=
   m.inductionOn fun _ => DHashMap.Const.get!_filter
+
+/-- Simpler variant of `get!_filter` when `LawfulBEq` is available. -/
+@[grind =]
+theorem get!_filter' [LawfulBEq α] [LawfulHashable α] [Inhabited β]
+    {f : α → β → Bool} {k : α} :
+    Const.get! (m.filter f) k = ((Const.get? m k).filter (f k)).get! := by
+  simp [get!_filter]
 
 theorem get!_filter_of_getKey?_eq_some [EquivBEq α] [LawfulHashable α] [Inhabited β]
     {f : α → β → Bool} {k k' : α} :
@@ -3236,11 +3268,18 @@ theorem get!_filter_of_getKey?_eq_some [EquivBEq α] [LawfulHashable α] [Inhabi
       Const.get! (m.filter f) k = ((Const.get? m k).filter (fun x => f k' x)).get! :=
   m.inductionOn fun _ => DHashMap.Const.get!_filter_of_getKey?_eq_some
 
-@[grind =] theorem getD_filter [EquivBEq α] [LawfulHashable α]
+theorem getD_filter [EquivBEq α] [LawfulHashable α]
     {f : α → β → Bool} {k : α} {fallback : β} :
     Const.getD (m.filter f) k fallback = ((Const.get? m k).pfilter (fun x h' =>
       f (m.getKey k (mem_iff_isSome_get?.mpr (Option.isSome_of_eq_some h'))) x)).getD fallback :=
   m.inductionOn fun _ => DHashMap.Const.getD_filter
+
+/-- Simpler variant of `getD_filter` when `LawfulBEq` is available. -/
+@[grind =]
+theorem getD_filter' [LawfulBEq α] [LawfulHashable α]
+    {f : α → β → Bool} {k : α} {fallback : β} :
+    Const.getD (m.filter f) k fallback = ((Const.get? m k).filter (f k)).getD fallback := by
+  simp [getD_filter]
 
 theorem getD_filter_of_getKey?_eq_some [EquivBEq α] [LawfulHashable α]
     {f : α → β → Bool} {k k' : α} {fallback : β} :
@@ -3280,16 +3319,16 @@ variable {γ : α → Type w} {δ : α → Type w'}
 
 @[simp]
 theorem map_id_fun [EquivBEq α] [LawfulHashable α] : m.map (fun _ v => v) = m :=
-  m.inductionOn fun _ => Quotient.sound DHashMap.map_id_equiv
+  m.inductionOn fun _ => sound DHashMap.map_id_equiv
 
 @[simp]
 theorem map_map [EquivBEq α] [LawfulHashable α] {f : (a : α) → β a → γ a} {g : (a : α) → γ a → δ a} :
     (m.map f).map g = m.map fun k v => g k (f k v) :=
-  m.inductionOn fun _ => Quotient.sound DHashMap.map_map_equiv
+  m.inductionOn fun _ => sound DHashMap.map_map_equiv
 
 theorem filterMap_eq_map [EquivBEq α] [LawfulHashable α] {f : (a : α) → β a → γ a} :
     (m.filterMap (fun k v => some (f k v))) = m.map f :=
-  m.inductionOn fun _ => Quotient.sound DHashMap.filterMap_equiv_map
+  m.inductionOn fun _ => sound DHashMap.filterMap_equiv_map
 
 @[simp]
 theorem map_eq_empty_iff [EquivBEq α] [LawfulHashable α] {f : (a : α) → β a → γ a} :

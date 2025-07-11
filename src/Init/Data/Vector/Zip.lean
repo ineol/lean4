@@ -6,8 +6,12 @@ Authors: Kim Morrison
 module
 
 prelude
-import Init.Data.Array.Zip
-import Init.Data.Vector.Lemmas
+public import all Init.Data.Array.Basic
+public import Init.Data.Array.Zip
+public import all Init.Data.Vector.Basic
+public import Init.Data.Vector.Lemmas
+
+public section
 
 /-!
 # Lemmas about `Vector.zip`, `Vector.zipWith`, `Vector.zipWithAll`, and `Vector.unzip`.
@@ -44,6 +48,7 @@ theorem zipWith_self {f : α → α → δ} {xs : Vector α n} : zipWith f xs xs
 See also `getElem?_zipWith'` for a variant
 using `Option.map` and `Option.bind` rather than a `match`.
 -/
+@[grind =]
 theorem getElem?_zipWith {f : α → β → γ} {i : Nat} :
     (zipWith f as bs)[i]? = match as[i]?, bs[i]? with
       | some a, some b => some (f a b) | _, _ => none := by
@@ -72,53 +77,61 @@ theorem getElem?_zip_eq_some {as : Vector α n} {bs : Vector β n} {z : α × β
   rcases bs with ⟨bs, h⟩
   simp [Array.getElem?_zip_eq_some]
 
-@[simp]
+@[simp, grind =]
 theorem zipWith_map {μ} {f : γ → δ → μ} {g : α → γ} {h : β → δ} {as : Vector α n} {bs : Vector β n} :
     zipWith f (as.map g) (bs.map h) = zipWith (fun a b => f (g a) (h b)) as bs := by
   rcases as with ⟨as, rfl⟩
   rcases bs with ⟨bs, h⟩
   simp [Array.zipWith_map]
 
+@[grind =]
 theorem zipWith_map_left {as : Vector α n} {bs : Vector β n} {f : α → α'} {g : α' → β → γ} :
     zipWith g (as.map f) bs = zipWith (fun a b => g (f a) b) as bs := by
   rcases as with ⟨as, rfl⟩
   rcases bs with ⟨bs, h⟩
   simp [Array.zipWith_map_left]
 
+@[grind =]
 theorem zipWith_map_right {as : Vector α n} {bs : Vector β n} {f : β → β'} {g : α → β' → γ} :
     zipWith g as (bs.map f) = zipWith (fun a b => g a (f b)) as bs := by
   rcases as with ⟨as, rfl⟩
   rcases bs with ⟨bs, h⟩
   simp [Array.zipWith_map_right]
 
+@[grind =]
 theorem zipWith_foldr_eq_zip_foldr {f : α → β → γ} {i : δ} :
     (zipWith f as bs).foldr g i = (zip as bs).foldr (fun p r => g (f p.1 p.2) r) i := by
   rcases as with ⟨as, rfl⟩
   rcases bs with ⟨bs, h⟩
   simpa using Array.zipWith_foldr_eq_zip_foldr
 
+@[grind =]
 theorem zipWith_foldl_eq_zip_foldl {f : α → β → γ} {i : δ} :
     (zipWith f as bs).foldl g i = (zip as bs).foldl (fun r p => g r (f p.1 p.2)) i := by
   rcases as with ⟨as, rfl⟩
   rcases bs with ⟨bs, h⟩
   simpa using Array.zipWith_foldl_eq_zip_foldl
 
+@[grind =]
 theorem map_zipWith {δ : Type _} {f : α → β} {g : γ → δ → α} {as : Vector γ n} {bs : Vector δ n} :
     map f (zipWith g as bs) = zipWith (fun x y => f (g x y)) as bs := by
   rcases as with ⟨as, rfl⟩
   rcases bs with ⟨bs, h⟩
   simp [Array.map_zipWith]
 
+@[grind =]
 theorem take_zipWith : (zipWith f as bs).take i = zipWith f (as.take i) (bs.take i) := by
   rcases as with ⟨as, rfl⟩
   rcases bs with ⟨bs, h⟩
   simp [Array.take_zipWith]
 
+@[grind =]
 theorem extract_zipWith : (zipWith f as bs).extract i j = zipWith f (as.extract i j) (bs.extract i j) := by
   rcases as with ⟨as, rfl⟩
   rcases bs with ⟨bs, h⟩
   simp [Array.extract_zipWith]
 
+@[grind =]
 theorem zipWith_append {f : α → β → γ}
     {as : Vector α n} {as' : Vector α m} {bs : Vector β n} {bs' : Vector β m} :
     zipWith f (as ++ as') (bs ++ bs') = zipWith f as bs ++ zipWith f as' bs' := by
@@ -145,7 +158,8 @@ theorem zipWith_eq_append_iff {f : α → β → γ} {as : Vector α (n + m)} {b
     simp only at w₁ w₂
     exact ⟨as₁, as₂, bs₁, bs₂, by simpa [hw, hy] using ⟨w₁, w₂⟩⟩
 
-@[simp] theorem zipWith_replicate {a : α} {b : β} {n : Nat} :
+@[simp, grind =]
+theorem zipWith_replicate {a : α} {b : β} {n : Nat} :
     zipWith f (replicate n a) (replicate n b) = replicate n (f a b) := by
   ext
   simp
@@ -165,6 +179,7 @@ theorem map_zip_eq_zipWith {f : α × β → γ} {as : Vector α n} {bs : Vector
   rcases bs with ⟨bs, h⟩
   simp [Array.map_zip_eq_zipWith]
 
+@[grind =]
 theorem reverse_zipWith {f : α → β → γ} {as : Vector α n} {bs : Vector β n} :
     (zipWith f as bs).reverse = zipWith f as.reverse bs.reverse := by
   rcases as with ⟨as, rfl⟩
@@ -173,7 +188,7 @@ theorem reverse_zipWith {f : α → β → γ} {as : Vector α n} {bs : Vector �
 
 /-! ### zip -/
 
-@[simp]
+@[simp, grind =]
 theorem getElem_zip {as : Vector α n} {bs : Vector β n} {i : Nat} {h : i < n} :
     (zip as bs)[i] = (as[i], bs[i]) :=
   getElem_zipWith ..
@@ -181,28 +196,33 @@ theorem getElem_zip {as : Vector α n} {bs : Vector β n} {i : Nat} {h : i < n} 
 theorem zip_eq_zipWith {as : Vector α n} {bs : Vector β n} : zip as bs = zipWith Prod.mk as bs := by
   rcases as with ⟨as, rfl⟩
   rcases bs with ⟨bs, h⟩
-  simp [Array.zip_eq_zipWith, h]
+  simp [Array.zip_eq_zipWith]
 
+@[grind _=_]
 theorem zip_map {f : α → γ} {g : β → δ} {as : Vector α n} {bs : Vector β n} :
     zip (as.map f) (bs.map g) = (zip as bs).map (Prod.map f g) := by
   rcases as with ⟨as, rfl⟩
   rcases bs with ⟨bs, h⟩
-  simp [Array.zip_map, h]
+  simp [Array.zip_map]
 
+@[grind _=_]
 theorem zip_map_left {f : α → γ} {as : Vector α n} {bs : Vector β n} :
     zip (as.map f) bs = (zip as bs).map (Prod.map f id) := by rw [← zip_map, map_id]
 
+@[grind _=_]
 theorem zip_map_right {f : β → γ} {as : Vector α n} {bs : Vector β n} :
     zip as (bs.map f) = (zip as bs).map (Prod.map id f) := by rw [← zip_map, map_id]
 
+@[grind =]
 theorem zip_append {as : Vector α n} {bs : Vector β n} {as' : Vector α m} {bs' : Vector β m} :
     zip (as ++ as') (bs ++ bs') = zip as bs ++ zip as' bs' := by
   rcases as with ⟨as, rfl⟩
   rcases bs with ⟨bs, h⟩
   rcases as' with ⟨as', rfl⟩
   rcases bs' with ⟨bs', h'⟩
-  simp [Array.zip_append, h, h']
+  simp [Array.zip_append, h]
 
+@[grind =]
 theorem zip_map' {f : α → β} {g : α → γ} {xs : Vector α n} :
     zip (xs.map f) (xs.map g) = xs.map fun a => (f a, g a) := by
   rcases xs with ⟨xs, rfl⟩
@@ -246,7 +266,8 @@ theorem zip_eq_append_iff {as : Vector α (n + m)} {bs : Vector β (n + m)} {xs 
       ∃ as₁ as₂ bs₁ bs₂, as = as₁ ++ as₂ ∧ bs = bs₁ ++ bs₂ ∧ xs = zip as₁ bs₁ ∧ ys = zip as₂ bs₂ := by
   simp [zip_eq_zipWith, zipWith_eq_append_iff]
 
-@[simp] theorem zip_replicate {a : α} {b : β} {n : Nat} :
+@[simp, grind =]
+theorem zip_replicate {a : α} {b : β} {n : Nat} :
     zip (replicate n a) (replicate n b) = replicate n (a, b) := by
   ext <;> simp
 
@@ -255,17 +276,20 @@ abbrev zip_mkVector := @zip_replicate
 
 /-! ### unzip -/
 
-@[simp] theorem unzip_fst : (unzip xs).fst = xs.map Prod.fst := by
+@[simp, grind =]
+theorem unzip_fst : (unzip xs).fst = xs.map Prod.fst := by
   cases xs
   simp_all
 
-@[simp] theorem unzip_snd : (unzip xs).snd = xs.map Prod.snd := by
+@[simp, grind =]
+theorem unzip_snd : (unzip xs).snd = xs.map Prod.snd := by
   cases xs
   simp_all
 
+@[grind =]
 theorem unzip_eq_map {xs : Vector (α × β) n} : unzip xs = (xs.map Prod.fst, xs.map Prod.snd) := by
   cases xs
-  simp [List.unzip_eq_map]
+  simp
 
 -- The argument `xs` is explicit so we can rewrite from right to left.
 theorem zip_unzip (xs : Vector (α × β) n) : zip (unzip xs).1 (unzip xs).2 = xs := by
@@ -276,25 +300,26 @@ theorem unzip_zip_left {as : Vector α n} {bs : Vector β n}  :
     (unzip (zip as bs)).1 = as := by
   rcases as with ⟨as, rfl⟩
   rcases bs with ⟨bs, h⟩
-  simp [Array.unzip_zip_left, h, Array.map_fst_zip]
+  simp [h, Array.map_fst_zip]
 
 theorem unzip_zip_right {as : Vector α n} {bs : Vector β n} :
     (unzip (zip as bs)).2 = bs := by
   rcases as with ⟨as, rfl⟩
   rcases bs with ⟨bs, h⟩
-  simp [Array.unzip_zip_right, h, Array.map_snd_zip]
+  simp [h, Array.map_snd_zip]
 
 theorem unzip_zip {as : Vector α n} {bs : Vector β n} :
     unzip (zip as bs) = (as, bs) := by
   rcases as with ⟨as, rfl⟩
   rcases bs with ⟨bs, h⟩
-  simp [Array.unzip_zip, h, Array.map_fst_zip, Array.map_snd_zip]
+  simp [Array.unzip_zip, h]
 
 theorem zip_of_prod {as : Vector α n} {bs : Vector β n} {xs : Vector (α × β) n} (hl : xs.map Prod.fst = as)
     (hr : xs.map Prod.snd = bs) : xs = as.zip bs := by
   rw [← hl, ← hr, ← zip_unzip xs, ← unzip_fst, ← unzip_snd, zip_unzip, zip_unzip]
 
-@[simp] theorem unzip_replicate {a : α} {b : β} {n : Nat} :
+@[simp, grind =]
+theorem unzip_replicate {a : α} {b : β} {n : Nat} :
     unzip (replicate n (a, b)) = (replicate n a, replicate n b) := by
   ext1 <;> simp
 

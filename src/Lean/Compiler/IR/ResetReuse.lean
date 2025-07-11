@@ -190,7 +190,7 @@ partial def R (e : FnBody) : M FnBody := do
             return alt
           else
             .ctor c <$> D x c b
-        | _ => return alt
+        | .default _ => return alt
       return .case tid x xType alts
   | .jdecl j ys v b =>
     let v ← R v
@@ -242,5 +242,7 @@ def Decl.insertResetReuse (d : Decl) : Decl :=
   -/
   d.insertResetReuseCore (relaxedReuse := false)
   |>.insertResetReuseCore (relaxedReuse := true)
+
+builtin_initialize registerTraceClass `compiler.ir.reset_reuse (inherited := true)
 
 end Lean.IR

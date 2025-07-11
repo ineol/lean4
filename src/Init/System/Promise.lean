@@ -6,7 +6,9 @@ Authors: Gabriel Ebner
 module
 
 prelude
-import Init.System.IO
+public import Init.System.IO
+
+public section
 
 set_option linter.missingDocs true
 
@@ -34,7 +36,7 @@ See `Promise.result!/resultD` for other ways to handle this case.
 def Promise (α : Type) : Type := PromiseImpl α
 
 instance [s : Nonempty α] : Nonempty (Promise α) :=
-  Nonempty.intro { prom := Classical.choice PromisePointed.property, h := s }
+  by exact Nonempty.intro { prom := Classical.choice PromisePointed.property, h := s }
 
 /-- Creates a new `Promise`. -/
 @[extern "lean_io_promise_new"]

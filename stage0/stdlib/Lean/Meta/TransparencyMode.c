@@ -15,7 +15,7 @@ extern "C" {
 #endif
 LEAN_EXPORT lean_object* l_Lean_Meta_TransparencyMode_lt___boxed(lean_object*, lean_object*);
 LEAN_EXPORT uint64_t l_Lean_Meta_TransparencyMode_hash(uint8_t);
-static lean_object* l_Lean_Meta_TransparencyMode_instHashable__lean___closed__1;
+static lean_object* l_Lean_Meta_TransparencyMode_instHashable__lean___closed__0;
 LEAN_EXPORT lean_object* l_Lean_Meta_TransparencyMode_instHashable__lean;
 LEAN_EXPORT lean_object* l_Lean_Meta_TransparencyMode_hash___boxed(lean_object*);
 LEAN_EXPORT uint8_t l_Lean_Meta_TransparencyMode_lt(uint8_t, uint8_t);
@@ -61,7 +61,7 @@ x_4 = lean_box_uint64(x_3);
 return x_4;
 }
 }
-static lean_object* _init_l_Lean_Meta_TransparencyMode_instHashable__lean___closed__1() {
+static lean_object* _init_l_Lean_Meta_TransparencyMode_instHashable__lean___closed__0() {
 _start:
 {
 lean_object* x_1; 
@@ -73,7 +73,7 @@ static lean_object* _init_l_Lean_Meta_TransparencyMode_instHashable__lean() {
 _start:
 {
 lean_object* x_1; 
-x_1 = l_Lean_Meta_TransparencyMode_instHashable__lean___closed__1;
+x_1 = l_Lean_Meta_TransparencyMode_instHashable__lean___closed__0;
 return x_1;
 }
 }
@@ -174,8 +174,8 @@ _G_initialized = true;
 res = initialize_Init_Data_UInt_Basic(builtin, lean_io_mk_world());
 if (lean_io_result_is_error(res)) return res;
 lean_dec_ref(res);
-l_Lean_Meta_TransparencyMode_instHashable__lean___closed__1 = _init_l_Lean_Meta_TransparencyMode_instHashable__lean___closed__1();
-lean_mark_persistent(l_Lean_Meta_TransparencyMode_instHashable__lean___closed__1);
+l_Lean_Meta_TransparencyMode_instHashable__lean___closed__0 = _init_l_Lean_Meta_TransparencyMode_instHashable__lean___closed__0();
+lean_mark_persistent(l_Lean_Meta_TransparencyMode_instHashable__lean___closed__0);
 l_Lean_Meta_TransparencyMode_instHashable__lean = _init_l_Lean_Meta_TransparencyMode_instHashable__lean();
 lean_mark_persistent(l_Lean_Meta_TransparencyMode_instHashable__lean);
 return lean_io_result_mk_ok(lean_box(0));

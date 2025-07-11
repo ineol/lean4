@@ -12,6 +12,7 @@ import Lean.Meta.Tactic.Split
 import Lean.Meta.Tactic.Apply
 import Lean.Meta.Tactic.Refl
 import Lean.Meta.Match.MatchEqs
+import Lean.DefEqAttrib
 
 namespace Lean.Elab.Eqns
 open Meta
@@ -24,18 +25,14 @@ structure EqnInfoCore where
   deriving Inhabited
 
 /--
-Zeta reduces `let` and `let_fun` while consuming metadata.
+Zeta reduces `let` and `have` while consuming metadata.
 Returns true if progress is made.
 -/
 partial def expand (progress : Bool) (e : Expr) : Bool × Expr :=
   match e with
   | Expr.letE _ _ v b _ => expand true (b.instantiate1 v)
   | Expr.mdata _ b      => expand true b
-  | e =>
-    if let some (_, _, v, b) := e.letFun? then
-      expand true (b.instantiate1 v)
-    else
-      (progress, e)
+  | e                   => (progress, e)
 
 def expandRHS? (mvarId : MVarId) : MetaM (Option MVarId) := do
   let target ← mvarId.getType'
@@ -60,7 +57,7 @@ private def findMatchToSplit? (deepRecursiveSplit : Bool) (env : Environment) (e
       let args := e.getAppArgs
       -- If none of the discriminants is a free variable, then it is not worth splitting the match
       let mut hasFVarDiscr := false
-      for i in [info.getFirstDiscrPos : info.getFirstDiscrPos + info.numDiscrs] do
+      for i in info.getFirstDiscrPos...(info.getFirstDiscrPos + info.numDiscrs) do
         let discr := args[i]!
         if discr.isFVar then
           hasFVarDiscr := true
@@ -75,7 +72,7 @@ private def findMatchToSplit? (deepRecursiveSplit : Bool) (env : Environment) (e
           return Expr.FindStep.found
       -- Else, the “old” behavior is split only when at least one alternative contains a `declNames`
       -- application with loose bound variables.
-      for i in [info.getFirstAltPos : info.getFirstAltPos + info.numAlts] do
+      for i in info.getFirstAltPos...(info.getFirstAltPos + info.numAlts) do
         let alt := args[i]!
         if Option.isSome <| alt.find? fun e => declNames.any e.isAppOf && e.hasLooseBVars then
           return Expr.FindStep.found
@@ -220,7 +217,7 @@ private def shouldUseSimpMatch (e : Expr) : MetaM Bool := do
     root.forEach fun e => do
       if let some info := isMatcherAppCore? env e then
         let args := e.getAppArgs
-        for discr in args[info.getFirstDiscrPos : info.getFirstDiscrPos + info.numDiscrs] do
+        for discr in args[info.getFirstDiscrPos...(info.getFirstDiscrPos + info.numDiscrs)] do
           if (← Meta.isConstructorApp discr) then
             throwThe Unit ()
   return (← (find e).run) matches .error _
@@ -401,6 +398,7 @@ This is currently used for non-recursive functions, well-founded recursion and p
 but not for structural recursion.
 -/
 def mkEqns (declName : Name) (declNames : Array Name) (tryRefl := true): MetaM (Array Name) := do
+  trace[Elab.definition.eqns] "mkEqns: {declName}"
   let info ← getConstInfoDefn declName
   let us := info.levelParams.map mkLevelParam
   withOptions (tactic.hygienic.set · false) do
@@ -411,10 +409,10 @@ def mkEqns (declName : Name) (declNames : Array Name) (tryRefl := true): MetaM (
       withReducible do
         mkEqnTypes declNames goal.mvarId!
   let mut thmNames := #[]
-  for h : i in [: eqnTypes.size] do
+  for h : i in *...eqnTypes.size do
     let type := eqnTypes[i]
     trace[Elab.definition.eqns] "eqnType[{i}]: {eqnTypes[i]}"
-    let name := (Name.str declName eqnThmSuffixBase).appendIndexAfter (i+1)
+    let name := mkEqLikeNameFor (← getEnv) declName s!"{eqnThmSuffixBasePrefix}{i+1}"
     thmNames := thmNames.push name
     -- determinism: `type` should be independent of the environment changes since `baseName` was
     -- added
@@ -428,6 +426,7 @@ where
       name, type, value
       levelParams := info.levelParams
     }
+    inferDefEqAttr name
 
 /--
   Auxiliary method for `mkUnfoldEq`. The structure is based on `mkEqnTypes`.

@@ -69,12 +69,6 @@ def _root_.Lean.MVarId.unfoldReducible (mvarId : MVarId) : MetaM MVarId :=
   mvarId.transformTarget Grind.unfoldReducible
 
 /--
-Abstracts nested proofs occurring in the goal's target.
--/
-def _root_.Lean.MVarId.abstractNestedProofs (mvarId : MVarId) (mainDeclName : Name) : MetaM MVarId :=
-  mvarId.transformTarget (Lean.Meta.abstractNestedProofs mainDeclName)
-
-/--
 Beta-reduces the goal's target.
 -/
 def _root_.Lean.MVarId.betaReduce (mvarId : MVarId) : MetaM MVarId :=
@@ -150,8 +144,10 @@ def foldProjs (e : Expr) : MetaM Expr := do
         F ⟶ G
       ```
       We should make `mkProjection` more robust.
+
+      The `mkProjection` function may create new kernel projections. So, we must use `.visit`.
       -/
-      return .done (← withDefault <| mkProjection s fieldName)
+      return .visit (← withDefault <| mkProjection s fieldName)
     else
       trace[grind.issues] "found `Expr.proj` with invalid field index `{idx}`{indentExpr e}"
       return .done e
@@ -221,5 +217,17 @@ def replacePreMatchCond (e : Expr) : MetaM Simp.Result := do
       return .continue (markAsMatchCond p)
     let e' ← Core.transform e (pre := pre)
     return { expr := e', proof? := mkExpectedPropHint (← mkEqRefl e') (← mkEq e e') }
+
+def isIte (e : Expr) :=
+  e.isAppOf ``ite && e.getAppNumArgs >= 5
+
+def isDIte (e : Expr) :=
+  e.isAppOf ``dite && e.getAppNumArgs >= 5
+
+def getBinOp (e : Expr) : Option Expr :=
+  if !e.isApp then none else
+  let f := e.appFn!
+  if !f.isApp then none else
+  some f.appFn!
 
 end Lean.Meta.Grind
