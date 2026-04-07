@@ -14,6 +14,7 @@ public import Lean.Compiler.LCNF.ToMono
 public import Lean.Compiler.LCNF.LambdaLifting
 public import Lean.Compiler.LCNF.FloatLetIn
 public import Lean.Compiler.LCNF.ReduceArity
+public import Lean.Compiler.LCNF.ConstrJpDestr
 public import Lean.Compiler.LCNF.ElimDeadBranches
 public import Lean.Compiler.LCNF.StructProjCases
 public import Lean.Compiler.LCNF.ExtractClosed
@@ -125,7 +126,8 @@ def builtinPassManager : PassManager := {
     structProjCases,
     extendJoinPointContext (phase := .mono) (occurrence := 0),
     floatLetIn (phase := .mono) (occurrence := 1),
-    reduceArity,
+    removeSpuriousConstr,
+    reduceArity (occ := 0),
     commonJoinPointArgs,
     simp (occurrence := 4) (phase := .mono),
     floatLetIn (phase := .mono) (occurrence := 2),
