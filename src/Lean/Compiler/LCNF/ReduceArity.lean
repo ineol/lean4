@@ -1,14 +1,19 @@
 /-
 Copyright (c) 2022 Microsoft Corporation. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Leonardo de Moura
+Authors: Leonardo de Moura, Leo Stefanesco
 -/
 module
 
 prelude
 public import Lean.Compiler.LCNF.Internalize
+import Lean.Compiler.LCNF.PrettyPrinter
+import Lean.Compiler.LCNF.Toposort
+
+open Std (HashMap HashSet)
 
 public section
+
 
 namespace Lean.Compiler.LCNF
 /-!
@@ -35,134 +40,266 @@ def f (x y : Nat) : Nat :=
 ```
 Note that any `f` full application is going to be inlined in the next `simp` pass.
 
-This module has basic support for detecting "unused" variables in recursive definitions.
-For example, the `y` in the following definition in correctly treated as "unused"
-```
-def f (x y : Nat) : Nat :=
-  cases x
-  | zero => x
-  | succ _x.1 =>
-    let _x.2 := f _x.1 y
-    let _x.3 := Nat.mul _x.2 _x.2
-    _x.3
-```
 This module does not have similar support for mutual recursive applications.
 We assume this limitation is irrelevant in practice.
+
+New features:
+- handle recursive functions (cf https://github.com/leanprover/lean4/issues/13355)
+  ```
+    def ff (x y : Nat) : Nat := 
+      match x with
+      | 0 => 0 
+      | x + 1 => 1 + ff x (x + y)
+  ```
+- add track dependencies for cases with a single alternative
+- errors out if a paramter whose name starts with `GHOST` remains in a function
+whose name ends with Impl.
 -/
+
 namespace FindUsed
 
 structure Context where
   decl : Decl .pure
   params : FVarIdSet
 
+structure Equation where
+  lhs : Array FVarId
+  rhs : FVarId
+
 structure State where
-  used : FVarIdHashSet := {}
+  decls : HashMap FVarId (Array FVarId)
+  equations : HashMap FVarId (Array FVarId)
+  facts : HashSet FVarId
+
+def printEqs (s : State) : CompilerM Unit := do
+  trace[Compiler.reduceArity] "Before: "
+  trace[Compiler.reduceArity] "Facts"
+  for f in s.facts do
+    trace[Compiler.reduceArity] "{mkFVar f}"
+  trace[Compiler.reduceArity] "Equations"
+  for (var, vars) in s.equations do
+    trace[Compiler.reduceArity] "{mkFVar var} --> {vars.toList.map mkFVar}"
 
 abbrev FindUsedM := ReaderT Context <| StateRefT State CompilerM
 
-def visitFVar (fvarId : FVarId) : FindUsedM Unit := do
-  if (← read).params.contains fvarId then
-    modify fun s => { s with used := s.used.insert fvarId }
+def emitEq (lhs : Array FVarId) (rhs : FVarId) : FindUsedM Unit :=
+  modify (fun s => {s with 
+    equations := s.equations.insert rhs <| (s.equations.getD rhs #[]) ++ lhs})
 
-def visitArg (arg : Arg .pure) : FindUsedM Unit := do
-  match arg with
+def emitFact (rhs : FVarId) : FindUsedM Unit :=
+  modify (fun s => {s with facts := s.facts.insert rhs})
+
+def emitFactArg (rhs : Arg .pure) : FindUsedM Unit :=
+  match rhs with
+  | .fvar fvarId => emitFact fvarId
   | .erased | .type .. => return ()
-  | .fvar fvarId => visitFVar fvarId
 
-def visitLetValue (e : LetValue .pure) : FindUsedM Unit := do
+def emitEqArg (lhs : Arg .pure) (rhs : FVarId) : FindUsedM Unit := do
+  match lhs with
+  | .fvar fvarId => emitEq #[fvarId] rhs
+  | .erased | .type .. => return ()
+
+def addDecl (decl : FunDecl .pure) : FindUsedM Unit := 
+  modify (fun s => {s with decls := s.decls.insert decl.fvarId (decl.params.map (·.fvarId))})
+
+partial
+def allIdenticalJmps (c : Cases .pure) : Bool := Id.run do
+  let mut seen : Option FVarId := none
+  for alt in c.alts do
+    match getTerminator alt.getCode with
+    | some (some jmp) => 
+      if let some jmp' := seen then
+        if jmp' != jmp then return false
+      else
+        seen := some jmp
+    | some none =>
+      return false
+    | none =>
+      continue
+  true
+where
+  getTerminator (c : Code .pure) : Option (Option FVarId) :=
+    match c with
+    | .jmp target _ => target
+    | .cases c => if _ : c.alts.size = 1 then getTerminator c.alts[0]!.getCode else some none
+    | .let _ k | .jp _ k | .fun _ k => 
+      getTerminator k
+    | .return _ => some none
+    | .unreach _ => none
+
+def gatherArgs (init : Array FVarId := #[]) (args : Array (Arg .pure)) :=
+      args.foldl (init := init) (fun a v => match v with | .fvar fvar => a.push fvar | _ => a)
+
+def visitLetValue (var : FVarId) (e : LetValue .pure) : FindUsedM Unit := do
   match e with
-  | .erased | .lit .. => return ()
-  | .proj _ _ fvarId => visitFVar fvarId
-  | .fvar fvarId args => visitFVar fvarId; args.forM visitArg
+  | .erased | .lit .. => pure ()
+  | .proj _ _ fvarId => emitEq #[fvarId] var
+  | .fvar fvarId args => 
+      emitEq (gatherArgs (init := #[fvarId]) args) var
   | .const declName _ args =>
     let decl := (← read).decl
     if declName == decl.name then
       for param in decl.params, arg in args do
-        match arg with
-        | .fvar fvarId =>
-          unless fvarId == param.fvarId do
-            visitFVar fvarId
-        | .erased | .type .. => pure ()
+        emitEqArg arg param.fvarId
       -- over-application
       for arg in args[decl.params.size...*] do
-        visitArg arg
+        emitEqArg arg var
       -- partial-application
       for param in decl.params[args.size...*] do
-        -- If recursive function is partially applied, we assume missing parameters are used because we don't want to eta-expand.
-        visitFVar param.fvarId
+        -- If recursive function is partially applied, we assume missing
+        -- parameters are used because we don't want to eta-expand.
+        emitEq #[param.fvarId] var
     else
-      args.forM visitArg
+      args.forM (emitEqArg · var)
 
 partial def visit (code : Code .pure) : FindUsedM Unit := do
   match code with
   | .let decl k =>
-    visitLetValue decl.value
+    visitLetValue decl.fvarId decl.value
     visit k
   | .jp decl k | .fun decl k =>
-    visit decl.value; visit k
+    addDecl decl
+    visit k
+    visit decl.value
   | .cases c =>
-    visitFVar c.discr
-    c.alts.forM fun alt => visit alt.getCode
-  | .jmp _ args => args.forM visitArg
-  | .return fvarId => visitFVar fvarId
+    if c.alts.size = 1 then
+      for p in c.alts[0]!.getParams do
+        emitEq #[c.discr] p.fvarId
+      visit c.alts[0]!.getCode
+    else
+      emitFact c.discr
+      c.alts.forM fun alt => visit alt.getCode
+  | .jmp id args => 
+    let params ← getFunDecl (pu := .pure) id
+    for param in params.params, arg in args do
+      emitEqArg arg param.fvarId
+  | .return fvarId => 
+    emitFact fvarId
   | .unreach _ => return ()
 
-def collectUsedParams (decl : Decl .pure) : CompilerM FVarIdHashSet := do
+def collectEquations (decl : Decl .pure) : CompilerM State := do
   let params := decl.params.foldl (init := {}) fun s p => s.insert p.fvarId
-  let (_, { used, .. }) ← decl.value.forCodeM visit |>.run { decl, params } |>.run {}
-  return used
+  let (_, eqs) ← decl.value.forCodeM visit |>.run { decl, params } |>.run ⟨{}, {}, {}⟩
+  printEqs eqs
+  return eqs
+
+partial def solve (eqs : State) : FVarIdHashSet := Id.run do
+  match eqs with
+  | ⟨_, eqs, state⟩ =>
+    let wl := state.toArray
+    pure <| go eqs state wl
+where
+  go eqs state wl := Id.run do
+    let .some var := wl.back? | pure state
+    let mut wl := wl.pop
+    let some vars := eqs[var]? | go eqs state wl
+    let mut state := state
+    for v in vars do
+      if ¬ state.contains v then
+        state := state.insert v
+        wl := wl.push v
+    go eqs state wl
+
+def collectUsedParams (decl : Decl .pure) : CompilerM FVarIdHashSet := do
+  let eqs ← collectEquations decl
+  let res := solve eqs
+  pure res
 
 end FindUsed
 
 namespace ReduceArity
 
 structure Context where
-  declName : Name
+  decl : Decl .pure
   auxDeclName : Name
-  paramMask : Array Bool
+  liveVars : FVarIdHashSet
 
-abbrev ReduceM := ReaderT Context CompilerM
+structure State where
+  used : HashMap FVarId (Array Bool)
+
+abbrev ReduceM := ReaderT Context <| StateT State CompilerM
 
 partial def reduce (code : Code .pure) : ReduceM (Code .pure) := do
   match code with
   | .let decl k =>
     let .const declName _ args := decl.value | do return code.updateLet! decl (← reduce k)
-    unless declName == (← read).declName do return code.updateLet! decl (← reduce k)
-    let mask := (← read).paramMask
+    unless declName == (← read).decl.name do return code.updateLet! decl (← reduce k)
+    let liveVars := (← read).liveVars
+    let params := (← read).decl.params
     let mut argsNew := #[]
-    for h : i in *...args.size do
-      -- keep over-application
-      if mask.getD i true then
-        argsNew := argsNew.push args[i]
+    for param in params, arg in args do
+      if liveVars.contains param.fvarId then
+        argsNew := argsNew.push arg
+      -- over application
+      for arg in args[params.size...*] do
+        argsNew := argsNew.push arg
     let decl ← decl.updateValue (.const (← read).auxDeclName [] argsNew)
     return code.updateLet! decl (← reduce k)
-  | .fun decl k | .jp decl k =>
+  | .fun decl k  =>
     let decl ← decl.updateValue (← reduce decl.value)
     return code.updateFun! decl (← reduce k)
+  | .jp decl k =>
+    let liveVars := (← read).liveVars
+    let mut paramsNew := #[]
+    let mut used := #[]
+    for p in decl.params do
+      if liveVars.contains p.fvarId then
+        used := used.push true
+        paramsNew := paramsNew.push p
+      else
+        used := used.push false
+    modify fun s => { s with used := s.used.insert decl.fvarId used }
+    let decl := FunDecl.mk decl.fvarId decl.binderName paramsNew decl.type (← reduce decl.value)
+    modifyLCtx fun lctx => lctx.addFunDecl decl
+    return .jp decl (← reduce k)
   | .cases c =>
-    let alts ← c.alts.mapMonoM fun alt => return alt.updateCode (← reduce alt.getCode)
-    return code.updateAlts! alts
-  | .unreach .. | .jmp .. | .return .. => return code
+    if c.alts.size = 1 ∧ ¬ (← read).liveVars.contains c.discr then
+      eraseParams c.alts[0]!.getParams
+      reduce c.alts[0]!.getCode
+    else
+      let alts ← c.alts.mapMonoM fun alt => return alt.updateCode (← reduce alt.getCode)
+      return code.updateAlts! alts
+  | .unreach .. | .return .. => return code
+  | .jmp fvarId args =>
+    let liveVars := (← read).liveVars
+    let used := (← get).used[fvarId]!
+    let mut argsNew := #[]
+    for (a, i) in args.zipIdx do
+      if used[i]! = true then
+        argsNew := argsNew.push a
+    return .jmp fvarId argsNew
 
 end ReduceArity
 
 open FindUsed ReduceArity Internalize
 
+def checkParamsForGhosts (params : Array (Param .pure)) (decl : Decl .pure) : CompilerM Unit := do
+  let .str _ name := decl.name | return
+  unless name.endsWith "Impl" do return
+  for param in params do
+    trace[Compiler.reduceArity] "vetting {param.binderName}"
+    if let .str _ s := param.binderName then
+      if s.startsWith "GHOST" then
+        logError  m!"Ghost parameter {param.binderName} has not been eliminated
+        in {decl.name}!"
+
 def Decl.reduceArity (decl : Decl .pure) : CompilerM (Array (Decl .pure)) := do
   match decl.value with
   | .code code =>
     let used ← collectUsedParams decl
-    if used.size == decl.params.size || used.size == 0 then
+    trace[Compiler.reduceArity] "{decl.name}, {← ppDecl decl}"
+    trace[Compiler.reduceArity] "{decl.name}, used params: {used.toList.map mkFVar}"
+    if decl.params.all (fun p => used.contains p.fvarId) || used.size == 0 then
       -- Do nothing if all params were used, or if no params were used. In the latter case,
       -- this would promote the decl to a constant, which could execute unreachable code.
       return #[decl]
     else
-      trace[Compiler.reduceArity] "{decl.name}, used params: {used.toList.map mkFVar}"
-      let mask   := decl.params.map fun param => used.contains param.fvarId
-      let auxName   := decl.name ++ `_redArg
+      let mask := decl.params.map fun param => used.contains param.fvarId
+      let auxName := decl.name ++ `_redArg
       let mkAuxDecl : CompilerM (Decl .pure) := do
         let params := decl.params.filter fun param => used.contains param.fvarId
-        let value  ← decl.value.mapCodeM reduce |>.run { declName := decl.name, auxDeclName := auxName, paramMask := mask }
+        checkParamsForGhosts params decl
+        let value  ← decl.value.mapCodeM reduce |>.run { liveVars := used, decl := decl, auxDeclName := auxName } |>.run' ⟨{}⟩
         let type ← code.inferType
         let type ← mkForallParams params type
         let auxDecl := { decl with name := auxName, levelParams := [], type, params, value }
@@ -186,11 +323,13 @@ def Decl.reduceArity (decl : Decl .pure) : CompilerM (Array (Decl .pure)) := do
       return #[auxDecl, decl]
   | .extern .. => return #[decl]
 
-def reduceArity : Pass where
+def reduceArity (occ := 0) : Pass where
   phase := .mono
   phaseOut := .mono
+  occurrence := occ
   name  := `reduceArity
   run   := fun decls => do
+    let decls ← toposortDecls decls
     decls.foldlM (init := #[]) fun decls decl => return decls ++ (← decl.reduceArity)
 
 builtin_initialize
